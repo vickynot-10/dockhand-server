@@ -3,7 +3,8 @@ import { CreateEditProjectSchema } from "../schema/zod/project.schema.js";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
 import { projects } from "../schema/database/project.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { services } from "../schema/database/services.js";
 
 export async function GetProjects(req: Request, res: Response) {
   const userId = req.user!.id;
@@ -19,6 +20,46 @@ export async function GetProjects(req: Request, res: Response) {
     .where(eq(projects.user_id, userId));
 
   return send_success(res, 201, rows);
+}
+
+export async function GetProjectsServices(req: Request, res: Response) {
+  const userId = req.user!.id;
+
+  const id: string | undefined = req.query!.id;
+
+  if (!id) {
+    return send_error(res, 400, "Invalid Payload !");
+  }
+
+  const [rows] = await db
+    .select({
+      id: projects.id,
+      project_name: projects.project_name,
+      environment: projects.environment,
+      updated_on: projects.updated_on,
+
+      services: sql`
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'id', ${services.id},
+            'created_on', ${services.created_on},
+            'updated_on', ${services.updated_on}
+          )
+        ) FILTER (WHERE ${services.id} IS NOT NULL),
+        '[]'::json
+      )
+    `,
+    })
+    .from(projects)
+    .leftJoin(
+      services,
+      and(eq(services.project_id, projects.id), eq(services.user_id, userId)),
+    )
+    .where(and(eq(projects.id, id), eq(projects.user_id, userId)))
+    .groupBy(projects.id);
+
+  return send_success(res, 200, rows);
 }
 
 export async function AddOrEditProject(req: Request, res: Response) {

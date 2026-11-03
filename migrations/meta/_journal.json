@@ -8,6 +8,13 @@
       "when": 1793708399092,
       "tag": "0000_pretty_alex_wilder",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793712932908,
+      "tag": "0001_slimy_white_queen",
+      "breakpoints": true
     }
   ]
 }
