@@ -9,16 +9,15 @@ import { users } from "../schema/database/user.js";
 import { eq } from "drizzle-orm";
 import { COOKIE } from "../constants.js";
 
-const SetCookie = (res: Response, token: string) => {
+function SetCookie(res: Response, token: string) {
   res.cookie(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
-};
-
+}
 export async function SignUp(req: Request, res: Response) {
   const result = SignUpSchema.safeParse(req.body);
 
@@ -77,8 +76,6 @@ export async function SignIn(req: Request, res: Response) {
     })
     .from(users)
     .where(eq(users.email, email));
-
-  console.log(user);
 
   if (!user || !user.password) {
     return send_error(res, 400, "Invalid Credentials !");

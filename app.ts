@@ -4,10 +4,10 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import Routes from "./routes/index.route.js";
-
-dotenv.config();
-
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { ensureDatabase } from "./config/ensure-db.js";
+import { db } from "./config/db.js";
+dotenv.config();
 
 const app = express();
 
@@ -32,8 +32,17 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api", Routes);
-ensureDatabase();
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+async function start() {
+  await ensureDatabase();
+  await migrate(db, { migrationsFolder: "./migrations" });
+
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+start().catch(function (err) {
+  console.error("Startup failed", err);
+  process.exit(1);
 });

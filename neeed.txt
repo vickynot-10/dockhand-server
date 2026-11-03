@@ -1,0 +1,5 @@
+ psql -U postgres -c "DROP DATABASE IF EXISTS dockhand WITH (FORCE);"
+
+Remove-Item -Recurse -Force migrations
+
+ npx drizzle-kit generate

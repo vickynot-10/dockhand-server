@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793699744012,
-      "tag": "0000_steep_vapor",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793704025551,
-      "tag": "0001_funny_vector",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793707805693,
-      "tag": "0002_freezing_energizer",
+      "when": 1793708399092,
+      "tag": "0000_pretty_alex_wilder",
       "breakpoints": true
     }
   ]
