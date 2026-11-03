@@ -6,6 +6,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+import AuthRoutes from "./routes/auth.route.js";
+import { ensureDatabase } from "./config/ensure-db.js";
+
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -13,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3001",
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
     credentials: true,
   }),
 );
@@ -27,6 +30,10 @@ app.get("/health", (req, res) => {
     message: "Server is running",
   });
 });
+
+app.use("/api/auth", AuthRoutes);
+
+ensureDatabase();
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

@@ -30,7 +30,7 @@ export async function SignUp(req: Request, res: Response) {
 
   const isExists = await db.select().from(users).where(eq(users.email, email));
 
-  if (isExists) {
+  if (isExists.length > 0) {
     return send_error(res, 404, "User with Mail Already Exists");
   }
 
@@ -77,6 +77,8 @@ export async function SignIn(req: Request, res: Response) {
     })
     .from(users)
     .where(eq(users.email, email));
+
+  console.log(user);
 
   if (!user || !user.password) {
     return send_error(res, 400, "Invalid Credentials !");

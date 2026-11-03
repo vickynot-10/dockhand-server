@@ -8,6 +8,13 @@
       "when": 1793699744012,
       "tag": "0000_steep_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793704025551,
+      "tag": "0001_funny_vector",
+      "breakpoints": true
     }
   ]
 }
