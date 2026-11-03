@@ -15,6 +15,13 @@
       "when": 1793704025551,
       "tag": "0001_funny_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793707805693,
+      "tag": "0002_freezing_energizer",
+      "breakpoints": true
     }
   ]
 }

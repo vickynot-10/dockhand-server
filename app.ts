@@ -3,10 +3,10 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
+import Routes from "./routes/index.route.js";
 
 dotenv.config();
 
-import AuthRoutes from "./routes/auth.route.js";
 import { ensureDatabase } from "./config/ensure-db.js";
 
 const app = express();
@@ -31,8 +31,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.use("/api/auth", AuthRoutes);
-
+app.use("/api", Routes);
 ensureDatabase();
 
 app.listen(PORT, () => {
