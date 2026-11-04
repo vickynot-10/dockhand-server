@@ -43,6 +43,9 @@ export async function GetProjectsServices(req: Request, res: Response) {
         json_agg(
           json_build_object(
             'id', ${services.id},
+            'service_name' , ${services.name},
+            'deploy_type' , ${services.deploy_type},
+            'type' , ${services.type},
             'created_on', ${services.created_on},
             'updated_on', ${services.updated_on}
           )

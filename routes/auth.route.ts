@@ -11,7 +11,7 @@ const router = Router();
 
 router.post("/sign-up", SignUp);
 router.post("/sign-in", SignIn);
-router.post("/sign-out", SignUp);
+router.post("/sign-out", SignOut);
 
 router.get("/github", GithubAuth);
 router.get("/github/callback", GithubCallback);

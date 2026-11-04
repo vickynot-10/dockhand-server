@@ -3,7 +3,7 @@ import { services } from "../schema/database/services.js";
 import type { SaveServiceInput } from "../schema/zod/services.schema.js";
 import { DEPLOY_TYPE } from "../constants.js";
 
-export async function createService(userId: string, data: SaveServiceInput) {
+export async function CreateService(userId: string, data: SaveServiceInput) {
   const values =
     data.deploy_type === DEPLOY_TYPE.GITHUB
       ? {

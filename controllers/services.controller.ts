@@ -6,6 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { services } from "../schema/database/services.js";
 import { SaveServiceSchema } from "../schema/zod/services.schema.js";
 import { DEPLOY_TYPE } from "../constants.js";
+import { CreateService } from "../service/service.service.js";
 
 export async function SaveServices(req: Request, res: Response) {
   const userId = req.user!.id;
@@ -20,25 +21,10 @@ export async function SaveServices(req: Request, res: Response) {
     );
   }
 
-  const data = parsed.data;
+  const insert = await CreateService(userId, parsed.data);
 
-  if (data.deploy_type === DEPLOY_TYPE.GITHUB) {
-    const {
-      project_id,
-      type,
-      name,
-      repo_id,
-      repo_full_name,
-      branch,
-      root_directory,
-      build_command,
-      output_directory,
-      env_vars,
-    } = data;
-  } else if (data.deploy_type === DEPLOY_TYPE.DOCKER) {
-    const { project_id, type, name, image_url } = data;
-
-    // Docker deployment logic
+  if (!insert) {
+    return send_error(res, 400, "Failed to Insert !");
   }
 
   return send_success(res, 201, null);
