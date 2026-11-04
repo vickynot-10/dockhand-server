@@ -8,6 +8,13 @@
       "when": 1793715335871,
       "tag": "0000_skinny_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793784593248,
+      "tag": "0001_lyrical_sleeper",
+      "breakpoints": true
     }
   ]
 }
