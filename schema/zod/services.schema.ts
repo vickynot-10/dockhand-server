@@ -1,12 +1,31 @@
 import { z } from "zod";
 import { DEPLOY_TYPE } from "../../constants.js";
 
+const RESERVED_SLUGS = [
+  "www",
+  "api",
+  "app",
+  "admin",
+  "dashboard",
+  "traefik",
+  "mail",
+  "dockhand",
+];
+const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]{1,28})[a-z0-9]$/;
+
 const base_fields = {
   name: z
     .string({ error: "Name is required" })
     .trim()
     .min(1, "Name cannot be empty")
     .max(64, "Name is too long"),
+
+  slug: z
+    .string({ error: "Subdomain is required" })
+    .trim()
+    .regex(SLUG_REGEX, "3-30 chars, lowercase letters, numbers, hyphens only")
+    .refine((v) => !RESERVED_SLUGS.includes(v), "This name is reserved"),
+
   project_id: z
     .string({ error: "ID is required" })
     .trim()

@@ -11,6 +11,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           project_id: data.project_id,
           type: data.type,
           name: data.name,
+          slug: data.slug,
           deploy_type: data.deploy_type,
 
           repo_id: data.repo_id,
@@ -28,6 +29,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           project_id: data.project_id,
           type: data.type,
           name: data.name,
+          slug: data.slug,
           deploy_type: data.deploy_type,
 
           repo_id: null,
