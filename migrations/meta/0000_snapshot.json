@@ -1,5 +1,5 @@
 {
-  "id": "95b35a00-3441-4bf5-a201-3460ab37509e",
+  "id": "c8f8a709-756c-4d5f-a33b-41798cb14acf",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -183,6 +183,12 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
+          "notNull": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true
         },
         "deploy_type": {
@@ -285,11 +291,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "services_name_unique": {
-          "name": "services_name_unique",
+        "services_slug_unique": {
+          "name": "services_slug_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "name"
+            "slug"
           ]
         }
       },

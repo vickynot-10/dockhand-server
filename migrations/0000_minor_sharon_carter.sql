@@ -26,7 +26,8 @@ CREATE TABLE "services" (
 	"user_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"type" text NOT NULL,
-	"name" text NOT NULL,
+	"name" text,
+	"slug" text NOT NULL,
 	"deploy_type" integer NOT NULL,
 	"repo_id" integer,
 	"repo_full_name" text,
@@ -38,7 +39,7 @@ CREATE TABLE "services" (
 	"image_url" text,
 	"created_on" timestamp DEFAULT now() NOT NULL,
 	"updated_on" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "services_name_unique" UNIQUE("name")
+	CONSTRAINT "services_slug_unique" UNIQUE("slug")
 );
 --> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
