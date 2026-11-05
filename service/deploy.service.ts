@@ -25,7 +25,6 @@ export async function DeployService(data: DeployParams) {
       project_id,
       service_id,
       deploy_type: Number(deploy_type),
-      started_on: new Date(),
       status: DEPLOYMENT_STATUS.QUEUED,
     })
     .returning();
@@ -72,6 +71,7 @@ async function RemoveOldContainers(
     .where(
       and(
         eq(deployments.service_id, service_id),
+        eq(deployments.status, DEPLOYMENT_STATUS.RUNNING),
         ne(deployments.id, currentDeploymentID),
       ),
     );
@@ -100,11 +100,9 @@ export async function DockerBasedDeploy(
   await PullImage(image);
   const image_ref = await GetImage(image);
 
-  let container_name: string | null = null;
-
   const host_name = `${service_data.slug}.${BASE_DOMAIN}`;
 
-  container_name = `${service_data.slug}-${deployment_id.slice(0, 8)}`;
+  const container_name = `${service_data.slug}-${deployment_id.slice(0, 8)}`;
 
   await RunContainer({
     name: container_name,
@@ -120,6 +118,9 @@ export async function DockerBasedDeploy(
 
   await UpdateDeployment(deployment_id, {
     status: DEPLOYMENT_STATUS.RUNNING,
+    image_tag: image_ref,
+    container_name,
     error: null,
+    finished_on: new Date(),
   });
 }

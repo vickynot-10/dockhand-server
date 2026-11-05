@@ -39,8 +39,12 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
       await DockerBasedDeploy(service.image_url, deployment_id, service);
     }
   } catch (e) {
-    console.error(e, "from deploy process");
+    const message = e instanceof Error ? e.message : String(e);
+    await UpdateDeployment(deployment_id, {
+      status: DEPLOYMENT_STATUS.FAILED,
+      error: message,
+      finished_on: new Date(),
+    });
+    throw e;
   }
-
-  return "ok";
 }
