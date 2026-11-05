@@ -7,6 +7,7 @@ import Routes from "./routes/index.route.js";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { ensureDatabase } from "./config/ensure-db.js";
 import { db } from "./config/db.js";
+import { ConnectRedis, DisconnectRedis } from "./config/redis.js";
 dotenv.config();
 
 const app = express();
@@ -34,12 +35,22 @@ app.get("/health", (req, res) => {
 app.use("/api", Routes);
 
 async function start() {
+  await ConnectRedis();
   await ensureDatabase();
   await migrate(db, { migrationsFolder: "./migrations" });
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  async function shutdown() {
+    server.close();
+    await DisconnectRedis();
+    process.exit(0);
+  }
+
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
 
 start().catch(function (err) {
