@@ -66,7 +66,6 @@ export async function SaveServices(req: Request, res: Response) {
       service_id: service.id,
       deploy_type: service.deploy_type,
     });
-
     return send_success(res, 201, null, "Deploy Added to Queue !");
   } catch {
     return send_error(

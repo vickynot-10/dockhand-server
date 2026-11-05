@@ -4,3 +4,11 @@ export interface DeployParams {
   service_id: string;
   deploy_type: number;
 }
+
+export type RunContainerOptions = {
+  name: string;
+  image: string;
+  slug: string;
+  port: number;
+  hostname: string;
+};

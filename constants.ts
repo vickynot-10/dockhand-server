@@ -1,5 +1,8 @@
 export const COOKIE = "dockhand";
 
+// specify the number only as MB
+export const MEMORY_LIMIT_MB = 256;
+
 export const DEPLOY_TYPE = {
   GITHUB: 1,
   DOCKER: 2,

@@ -8,8 +8,8 @@
     "dev": "nodemon --watch . --ext ts --ignore dist --exec tsx app.ts",
     "start": "node dist/app.js",
     "build": "tsc",
-    "db:drop-table": "tsx scripts/drop-table.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "worker": "tsx watch workers/deploy.worker.ts"
   },
   "keywords": [],
   "author": "",
