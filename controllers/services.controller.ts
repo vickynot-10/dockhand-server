@@ -18,6 +18,22 @@ function isUniqueViolation(error: unknown) {
   return e?.code === "23505" || e?.cause?.code === "23505";
 }
 
+export async function GetServiceByID(req: Request, res: Response) {
+  const id: string | undefined = req.query!.id;
+
+  if (!id) {
+    return send_error(res, 400, "Invalid Payload !");
+  }
+
+  const [rows] = await db
+    .select()
+    .from(services)
+    .where(eq(services.id, id))
+    .innerJoin(deployments, eq(deployments.service_id, id));
+
+  return send_success(res, 200, rows);
+}
+
 export async function SaveServices(req: Request, res: Response) {
   const userId = req.user!.id;
 

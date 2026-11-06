@@ -17,3 +17,8 @@ export const DEPLOYMENT_STATUS = {
   SUSPENDED: 6,
   SUPERSEDED: 7,
 };
+
+export const DEPLOY_TRIGGER = {
+  AUTO: 1,
+  MANUAL: 2,
+};

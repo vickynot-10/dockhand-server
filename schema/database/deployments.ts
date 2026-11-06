@@ -10,7 +10,7 @@ import {
 import { users } from "./user.js";
 import { projects } from "./project.js";
 import { services } from "./services.js";
-import { DEPLOYMENT_STATUS } from "../../constants.js";
+import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../../constants.js";
 
 type DeploymentLogLine = {
   ts: number;
@@ -36,6 +36,7 @@ export const deployments = pgTable(
 
     status: integer("status").notNull().default(DEPLOYMENT_STATUS.QUEUED),
 
+    trigger: integer("trigger").default(DEPLOY_TRIGGER.AUTO),
     deploy_type: integer("deploy_type").notNull(),
     commit_sha: text("commit_sha"),
     image_tag: text("image_tag"),
