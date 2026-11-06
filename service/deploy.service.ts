@@ -89,7 +89,6 @@ async function RemoveOldContainers(
 }
 
 const BASE_DOMAIN = process.env.BASE_DOMAIN ?? "localhost";
-const DEFAULT_PORT = Number(process.env.DEFAULT_APP_PORT ?? 80);
 
 export async function DockerBasedDeploy(
   image: string,
@@ -110,6 +109,10 @@ export async function DockerBasedDeploy(
       await PullImage(image);
     }
     const image_ref = await GetImage(image);
+
+    const DEFAULT_PORT = Number(
+      service_data.port ?? process.env.DEFAULT_APP_PORT ?? 80,
+    );
 
     await RemoveOldContainers(service_data.id, deployment_id);
     await RunContainer({

@@ -22,6 +22,8 @@ export const services = pgTable("services", {
     .references(() => projects.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
 
+  port: integer("port").notNull().default(80),
+
   name: text("name").notNull(),
 
   slug: text("slug").notNull().unique(),

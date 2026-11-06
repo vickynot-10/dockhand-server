@@ -13,7 +13,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           name: data.name,
           slug: data.slug,
           deploy_type: data.deploy_type,
-
+          port: Number(data.port),
           repo_id: data.repo_id,
           repo_full_name: data.repo_full_name,
           branch: data.branch,
@@ -31,7 +31,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           name: data.name,
           slug: data.slug,
           deploy_type: data.deploy_type,
-
+          port: Number(data.port),
           repo_id: null,
           repo_full_name: null,
           branch: null,

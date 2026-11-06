@@ -34,6 +34,12 @@ const base_fields = {
     .string({ error: "Type is required" })
     .trim()
     .min(1, "Type cannot be empty"),
+
+  port: z.coerce
+    .number({ error: "PORT is Requried" })
+    .int("Port must be an integer")
+    .min(1, "Port must be between 1 and 65535")
+    .max(65535, "Port must be between 1 and 65535"),
 };
 
 const env_var_schema = z.object({
