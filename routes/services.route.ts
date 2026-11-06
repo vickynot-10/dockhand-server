@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  DeployServices,
   GetServiceByID,
   SaveServices,
   ServicesActions,
@@ -9,6 +10,7 @@ const router = Router();
 
 router.use(AuthMiddleware);
 router.post("/", SaveServices);
+router.post("/deploy", DeployServices);
 router.get("/", GetServiceByID);
 router.post("/actions", ServicesActions);
 

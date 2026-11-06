@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { services } from "../schema/database/services.js";
 import {
   ActionServiceSchema,
@@ -10,7 +10,7 @@ import {
 import { CreateService } from "../service/service.service.js";
 import { DeployService } from "../service/deploy.service.js";
 import { deployments } from "../schema/database/deployments.js";
-import { DEPLOYMENT_STATUS } from "../constants.js";
+import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../constants.js";
 import { EnqueueDeploymentActions } from "../queue/container-actions.queue.js";
 
 function isUniqueViolation(error: unknown) {
@@ -26,10 +26,19 @@ export async function GetServiceByID(req: Request, res: Response) {
   }
 
   const [rows] = await db
-    .select()
+    .select({
+      services: services,
+      deployments: sql`
+        COALESCE(
+        jsonb_agg(${deployments}) FILTER(WHERE ${deployments.id} IS NOT NULL),
+        '[]'::jsonb
+        )
+        `.as("deployments"),
+    })
     .from(services)
     .where(eq(services.id, id))
-    .innerJoin(deployments, eq(deployments.service_id, id));
+    .leftJoin(deployments, eq(deployments.service_id, id))
+    .groupBy(services.id);
 
   return send_success(res, 200, rows);
 }
@@ -87,6 +96,63 @@ export async function SaveServices(req: Request, res: Response) {
       project_id: service.project_id,
       service_id: service.id,
       deploy_type: service.deploy_type,
+      trigger_type: DEPLOY_TRIGGER.AUTO,
+    });
+    return send_success(res, 201, null, "Deploy Added to Queue !");
+  } catch {
+    return send_error(
+      res,
+      500,
+      "Service saved but deployment could not be queued",
+    );
+  }
+}
+
+export async function DeployServices(req: Request, res: Response) {
+  const userId = req.user!.id;
+
+  const { service_id } = req.body;
+
+  if (!service_id) {
+    return send_error(res, 400, "Invalid Payload !");
+  }
+
+  const [service] = await db
+    .select()
+    .from(services)
+    .where(eq(services.id, service_id));
+
+  if (!service) {
+    return send_error(res, 400, "Service Not Found !");
+  }
+  if (!service.enabled) {
+    return send_error(res, 400, "Resume the service before deploying");
+  }
+
+  const [inFlight] = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.service_id, service.id),
+        inArray(deployments.status, [
+          DEPLOYMENT_STATUS.QUEUED,
+          DEPLOYMENT_STATUS.BUILDING,
+        ]),
+      ),
+    );
+
+  if (inFlight) {
+    return send_error(res, 409, "A deployment is already in progress");
+  }
+
+  try {
+    await DeployService({
+      user_id: userId,
+      project_id: service.project_id,
+      service_id: service.id,
+      deploy_type: service.deploy_type,
+      trigger_type: DEPLOY_TRIGGER.MANUAL,
     });
     return send_success(res, 201, null, "Deploy Added to Queue !");
   } catch {

@@ -24,6 +24,7 @@ export async function DeployService(data: DeployParams) {
       user_id,
       project_id,
       service_id,
+      trigger: data.trigger_type,
       deploy_type: Number(deploy_type),
       status: DEPLOYMENT_STATUS.QUEUED,
     })
