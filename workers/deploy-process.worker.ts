@@ -4,6 +4,7 @@ import { services } from "../schema/database/services.js";
 import { eq } from "drizzle-orm";
 import {
   DockerBasedDeploy,
+  GithubBasedDeploy,
   UpdateDeployment,
 } from "../service/deploy.service.js";
 import { DEPLOY_TYPE, DEPLOYMENT_STATUS } from "../constants.js";
@@ -36,7 +37,10 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
     });
 
     if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER && service.image_url) {
-      await DockerBasedDeploy(service.image_url, deployment_id, service);
+      await DockerBasedDeploy(service.image_url, deployment_id, service, false);
+    }
+    if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.GITHUB && service.branch) {
+      await GithubBasedDeploy(deployment_id, service);
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

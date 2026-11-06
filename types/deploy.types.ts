@@ -13,3 +13,11 @@ export type RunContainerOptions = {
   port: number;
   hostname: string;
 };
+
+export type GitHubOptions = {
+  user_id: string;
+  repo_name: string;
+  branch: string;
+  root: string;
+  slug: string;
+};
