@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNotNull, sql } from "drizzle-orm";
 import { services } from "../schema/database/services.js";
 import {
   ActionServiceSchema,
@@ -19,27 +19,42 @@ function isUniqueViolation(error: unknown) {
 }
 
 export async function GetServiceByID(req: Request, res: Response) {
-  const id: string | undefined = req.query!.id;
+  const id: string | undefined = req.query!.id as string | undefined;
 
   if (!id) {
     return send_error(res, 400, "Invalid Payload !");
   }
 
+  const {
+    user_id,
+    env_vars,
+    slug,
+    root_directory,
+    build_command,
+    output_directory,
+    repo_id,
+    created_on,
+    updated_on,
+    ...serviceColumns
+  } = getTableColumns(services);
+
   const [rows] = await db
     .select({
-      services: services,
+      services: serviceColumns,
       deployments: sql`
-        COALESCE(
-        jsonb_agg(${deployments}) FILTER(WHERE ${deployments.id} IS NOT NULL),
+      COALESCE(
+        jsonb_agg(
+          to_jsonb(${deployments}) - ARRAY['user_id', 'project_id', 'service_id', 'deploy_type']
+          ORDER BY ${deployments.created_on} DESC
+        ) FILTER (WHERE ${deployments.id} IS NOT NULL),
         '[]'::jsonb
-        )
-        `.as("deployments"),
+      )
+    `.as("deployments"),
     })
     .from(services)
+    .leftJoin(deployments, eq(deployments.service_id, services.id))
     .where(eq(services.id, id))
-    .leftJoin(deployments, eq(deployments.service_id, id))
     .groupBy(services.id);
-
   return send_success(res, 200, rows);
 }
 

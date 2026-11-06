@@ -25,7 +25,7 @@ export async function GetProjects(req: Request, res: Response) {
 export async function GetProjectsServices(req: Request, res: Response) {
   const userId = req.user!.id;
 
-  const id: string | undefined = req.query!.id;
+  const id: string | undefined = req.query!.id as string | undefined;
 
   if (!id) {
     return send_error(res, 400, "Invalid Payload !");
@@ -115,7 +115,7 @@ export async function DeleteProject(req: Request, res: Response) {
 
   const [delete_project] = await db
     .delete(projects)
-    .where(and(eq(projects.id, id), eq(projects.user_id, userId)))
+    .where(eq(projects.id, id))
     .returning();
 
   if (!delete_project) {
