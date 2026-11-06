@@ -57,7 +57,6 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
           if (line.trim()) onLog?.("stdout", HideToken(line, token));
         }
       }
-      if (event.error) onLog?.("stderr", HideToken(event.error, token));
     }
 
     await new Promise<void>((resolve, reject) => {

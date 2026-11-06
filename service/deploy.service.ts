@@ -160,7 +160,7 @@ export async function DockerBasedDeploy(
   }
 }
 
-function DeployErrorMessage(e: unknown) {
+export function DeployErrorMessage(e: unknown) {
   const err = e as { code?: string; message?: string };
   if (err?.code === "ECONNREFUSED" || err?.code === "ENOENT") {
     return "Docker daemon is not reachable";

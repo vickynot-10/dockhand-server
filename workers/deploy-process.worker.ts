@@ -3,6 +3,7 @@ import { db } from "../config/db.js";
 import { services } from "../schema/database/services.js";
 import { eq } from "drizzle-orm";
 import {
+  DeployErrorMessage,
   DockerBasedDeploy,
   GithubBasedDeploy,
   UpdateDeployment,
@@ -38,7 +39,8 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
       deploy_type: DEPLOY_TYPE_NUM,
     });
 
-    if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER && service.image_url) {
+    if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER) {
+      if (!service.image_url) throw new Error("Image url is missing");
       await DockerBasedDeploy(
         service.image_url,
         deployment_id,
@@ -46,12 +48,14 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
         false,
         logs.Push,
       );
-    }
-    if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.GITHUB && service.branch) {
+    } else if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.GITHUB) {
+      if (!service.branch) throw new Error("Branch is missing");
       await GithubBasedDeploy(deployment_id, service, logs.Push);
+    } else {
+      throw new Error("Unsupported deploy type");
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = DeployErrorMessage(e);
     logs.Push("stderr", message);
     await UpdateDeployment(deployment_id, {
       status: DEPLOYMENT_STATUS.FAILED,
