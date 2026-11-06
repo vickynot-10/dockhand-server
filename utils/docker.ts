@@ -68,3 +68,11 @@ export async function RemoveContainer(name: string) {
     if (statusCode !== 404) throw error;
   }
 }
+
+export async function StopContainers(container_name: string) {
+  await docker.getContainer(container_name).stop({ t: 10 });
+}
+
+export async function StartContainers(container_name: string) {
+  await docker.getContainer(container_name).start();
+}

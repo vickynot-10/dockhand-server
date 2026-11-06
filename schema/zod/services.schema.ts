@@ -95,3 +95,8 @@ export const SaveServiceSchema = z.discriminatedUnion("deploy_type", [
 ]);
 
 export type SaveServiceInput = z.infer<typeof SaveServiceSchema>;
+
+export const ActionServiceSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1),
+  action: z.enum(["suspend", "delete", "resume"]),
+});

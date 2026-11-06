@@ -19,7 +19,7 @@ export async function GetProjects(req: Request, res: Response) {
     .from(projects)
     .where(eq(projects.user_id, userId));
 
-  return send_success(res, 201, rows);
+  return send_success(res, 200, rows);
 }
 
 export async function GetProjectsServices(req: Request, res: Response) {
@@ -46,7 +46,7 @@ export async function GetProjectsServices(req: Request, res: Response) {
             'service_name' , ${services.name},
             'deploy_type' , ${services.deploy_type},
             'type' , ${services.type},
-            'created_on', ${services.created_on},
+            
             'updated_on', ${services.updated_on}
           )
         ) FILTER (WHERE ${services.id} IS NOT NULL),

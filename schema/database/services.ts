@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   jsonb,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { users } from "./user.js";
 import { projects } from "./project.js";
@@ -26,6 +27,8 @@ export const services = pgTable("services", {
   slug: text("slug").notNull().unique(),
 
   deploy_type: integer("deploy_type").notNull(),
+
+  enabled: boolean("enabled").notNull().default(true),
 
   // GitHub deployment
   repo_id: integer("repo_id"),
