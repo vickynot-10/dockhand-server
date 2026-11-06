@@ -124,6 +124,14 @@ export async function DockerBasedDeploy(
       error: null,
       finished_on: new Date(),
     });
+
+    await db
+      .update(services)
+      .set({
+        host: host_name,
+        updated_on: new Date(),
+      })
+      .where(eq(services.id, service_data.id));
   } catch (e) {
     await RemoveContainer(container_name).catch(() => {});
     await UpdateDeployment(deployment_id, {

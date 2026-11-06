@@ -25,6 +25,7 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
 
   slug: text("slug").notNull().unique(),
+  host: text("host"),
 
   deploy_type: integer("deploy_type").notNull(),
 
