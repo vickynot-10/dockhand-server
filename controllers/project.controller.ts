@@ -46,7 +46,7 @@ export async function GetProjectsServices(req: Request, res: Response) {
             'service_name' , ${services.name},
             'deploy_type' , ${services.deploy_type},
             'type' , ${services.type},
-            
+            'enabled' , ${services.enabled},
             'updated_on', ${services.updated_on}
           )
         ) FILTER (WHERE ${services.id} IS NOT NULL),

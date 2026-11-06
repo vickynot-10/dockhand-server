@@ -9,7 +9,12 @@
     "start": "node dist/app.js",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "worker": "tsx watch workers/deploy.worker.ts"
+    "worker:deploy": "tsx watch workers/deploy.worker.ts",
+    "worker:actions": "tsx watch workers/container-action.worker.ts",
+    "workers": "concurrently -n deploy,actions -c blue,green \"npm:worker:deploy\" \"npm:worker:actions\"",
+    "start:worker:deploy": "node dist/workers/deploy.worker.js",
+    "start:worker:actions": "node dist/workers/container-action.worker.js",
+    "start:workers": "concurrently -n deploy,actions \"npm:start:worker:deploy\" \"npm:start:worker:actions\""
   },
   "keywords": [],
   "author": "",
@@ -44,6 +49,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "concurrently": "^10.0.6",
     "drizzle-kit": "^0.31.11",
     "nodemon": "^3.1.14",
     "tsx": "^4.23.15",

@@ -29,3 +29,7 @@ redisConnection.on("connect", () => {
 redisConnection.on("error", (error) => {
   console.error("Redis error:", error.message);
 });
+
+async function ClearAll() {
+  await redisConnection.flushdb();
+}
