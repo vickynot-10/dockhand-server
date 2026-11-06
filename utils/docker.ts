@@ -16,6 +16,10 @@ function NormalizeDockerImageString(image: string) {
   return `${image}:latest`;
 }
 
+export async function PingDocker() {
+  await docker.ping();
+}
+
 export function PullImage(image: string) {
   return new Promise<void>((resolve, reject) => {
     const img = NormalizeDockerImageString(image);
@@ -69,10 +73,23 @@ export async function RemoveContainer(name: string) {
   }
 }
 
+function IgnoreStatus(error: unknown, codes: number[]) {
+  const statusCode = (error as { statusCode?: number }).statusCode;
+  if (!statusCode || !codes.includes(statusCode)) throw error;
+}
+
 export async function StopContainers(container_name: string) {
-  await docker.getContainer(container_name).stop({ t: 10 });
+  try {
+    await docker.getContainer(container_name).stop({ t: 10 });
+  } catch (error) {
+    IgnoreStatus(error, [304]);
+  }
 }
 
 export async function StartContainers(container_name: string) {
-  await docker.getContainer(container_name).start();
+  try {
+    await docker.getContainer(container_name).start();
+  } catch (error) {
+    IgnoreStatus(error, [304]);
+  }
 }

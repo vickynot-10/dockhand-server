@@ -96,31 +96,48 @@ export async function DockerBasedDeploy(
   if (!image) {
     throw new Error("Image is Not found");
   }
-  // Pull image first
-  await PullImage(image);
-  const image_ref = await GetImage(image);
-
   const host_name = `${service_data.slug}.${BASE_DOMAIN}`;
 
   const container_name = `${service_data.slug}-${deployment_id.slice(0, 8)}`;
 
-  await RunContainer({
-    name: container_name,
-    image: image_ref,
-    slug: service_data.slug,
-    port: DEFAULT_PORT,
-    hostname: host_name,
-  });
+  try {
+    // Pull image first
+    await PullImage(image);
+    const image_ref = await GetImage(image);
 
-  await RemoveOldContainers(service_data.id, deployment_id);
+    await RemoveOldContainers(service_data.id, deployment_id);
+    await RunContainer({
+      name: container_name,
+      image: image_ref,
+      slug: service_data.slug,
+      port: DEFAULT_PORT,
+      hostname: host_name,
+    });
 
-  // Finish deployment
+    // Finish deployment
 
-  await UpdateDeployment(deployment_id, {
-    status: DEPLOYMENT_STATUS.RUNNING,
-    image_tag: image_ref,
-    container_name,
-    error: null,
-    finished_on: new Date(),
-  });
+    await UpdateDeployment(deployment_id, {
+      status: DEPLOYMENT_STATUS.RUNNING,
+      image_tag: image_ref,
+      container_name,
+      error: null,
+      finished_on: new Date(),
+    });
+  } catch (e) {
+    await RemoveContainer(container_name).catch(() => {});
+    await UpdateDeployment(deployment_id, {
+      status: DEPLOYMENT_STATUS.FAILED,
+      error: DeployErrorMessage(e),
+      finished_on: new Date(),
+    });
+    throw e;
+  }
+}
+
+function DeployErrorMessage(e: unknown) {
+  const err = e as { code?: string; message?: string };
+  if (err?.code === "ECONNREFUSED" || err?.code === "ENOENT") {
+    return "Docker daemon is not reachable";
+  }
+  return err?.message ?? "Deployment failed";
 }

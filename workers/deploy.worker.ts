@@ -6,9 +6,11 @@ import {
   redisConnection,
 } from "../config/redis.js";
 import { DEPLOYMENT_QUEUE_KEY } from "../queue/deploy.queue.js";
+import { PingDocker } from "../utils/docker.js";
 
 async function StartDeployWorker() {
   await ConnectRedis();
+  await PingDocker();
 
   const worker = new Worker(DEPLOYMENT_QUEUE_KEY, ProcessDeployments, {
     connection: redisConnection.duplicate(),

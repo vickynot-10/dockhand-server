@@ -16,7 +16,11 @@ export async function EnqueueDeployment(
     { deployment_id, service_id },
     {
       jobId: deployment_id,
-      attempts: 1,
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
       removeOnComplete: 100,
       removeOnFail: 500,
     },
