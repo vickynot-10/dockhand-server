@@ -4,7 +4,7 @@ import { users } from "../schema/database/user.js";
 import { decrypt } from "../libs/crypto.js";
 import { simpleGit } from "simple-git";
 import Docker from "dockerode";
-import type { GitHubOptions } from "../types/deploy.types.js";
+import type { GitHubOptions, OnLog } from "../types/deploy.types.js";
 const docker = new Docker();
 export async function getGithubToken(userId: string) {
   const [user] = await db
@@ -21,7 +21,7 @@ function HideToken(message: string, token: string | null): string {
   return message.replaceAll(token, "***");
 }
 
-export async function BuildWithGithub(options: GitHubOptions) {
+export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
   const token = await getGithubToken(options.user_id);
   const auth = token ? `x-access-token:${token}@` : "";
 
@@ -38,7 +38,7 @@ export async function BuildWithGithub(options: GitHubOptions) {
     if (!commit_sha) {
       throw new Error("Branch not found");
     }
-
+    onLog?.("system", `Building ${repo_name}@${commit_sha.slice(0, 7)}`);
     const remote = `${repoUrl}#${branch}${root ? `:${root}` : ""}`;
 
     const imageTag = `${slug}:${commit_sha.slice(0, 12)}`;
@@ -51,15 +51,28 @@ export async function BuildWithGithub(options: GitHubOptions) {
       },
     );
 
-    await new Promise<void>((resolve, reject) => {
-      docker.modem.followProgress(buildImg, (err: Error | null, result) => {
-        if (err) {
-          return reject(err);
+    function HandleEvent(event: { stream?: string; error?: string }) {
+      if (event.stream) {
+        for (const line of event.stream.split("\n")) {
+          if (line.trim()) onLog?.("stdout", HideToken(line, token));
         }
-        const isFailed = result.find((val) => val.error);
-        if (isFailed) return reject(new Error(isFailed.error));
-        resolve();
-      });
+      }
+      if (event.error) onLog?.("stderr", HideToken(event.error, token));
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      docker.modem.followProgress(
+        buildImg,
+        (err: Error | null, result) => {
+          if (err) {
+            return reject(err);
+          }
+          const isFailed = result.find((val) => val.error);
+          if (isFailed) return reject(new Error(isFailed.error));
+          resolve();
+        },
+        HandleEvent,
+      );
     });
     return { imageTag, commit_sha };
   } catch (e) {

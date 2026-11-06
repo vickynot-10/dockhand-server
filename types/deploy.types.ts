@@ -21,3 +21,5 @@ export type GitHubOptions = {
   root: string;
   slug: string;
 };
+
+export type OnLog = (stream: string, line: string) => void;

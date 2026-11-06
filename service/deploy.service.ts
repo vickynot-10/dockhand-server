@@ -1,4 +1,8 @@
-import type { DeployParams, GitHubOptions } from "../types/deploy.types.js";
+import type {
+  DeployParams,
+  GitHubOptions,
+  OnLog,
+} from "../types/deploy.types.js";
 import { deployments } from "../schema/database/deployments.js";
 import { db } from "../config/db.js";
 import { DEPLOYMENT_STATUS } from "../constants.js";
@@ -95,6 +99,7 @@ export async function DockerBasedDeploy(
   deployment_id: string,
   service_data: typeof services.$inferSelect,
   skip_pull: boolean,
+  onLog?: OnLog,
 ) {
   if (!image) {
     throw new Error("Image is Not found");
@@ -106,6 +111,7 @@ export async function DockerBasedDeploy(
   try {
     // Pull image first
     if (skip_pull === false) {
+      onLog?.("system", `Pulling ${image}`);
       await PullImage(image);
     }
     const image_ref = await GetImage(image);
@@ -115,6 +121,7 @@ export async function DockerBasedDeploy(
     );
 
     await RemoveOldContainers(service_data.id, deployment_id);
+    onLog?.("system", "Starting container");
     await RunContainer({
       name: container_name,
       image: image_ref,
@@ -132,6 +139,8 @@ export async function DockerBasedDeploy(
       error: null,
       finished_on: new Date(),
     });
+
+    onLog?.("system", `Running at ${host_name}`);
 
     await db
       .update(services)
@@ -162,6 +171,7 @@ function DeployErrorMessage(e: unknown) {
 export async function GithubBasedDeploy(
   deployment_id: string,
   service_data: typeof services.$inferSelect,
+  onLog?: OnLog,
 ) {
   if (!service_data.repo_full_name) {
     throw new Error("Repository is not set");
@@ -181,9 +191,9 @@ export async function GithubBasedDeploy(
     slug: service_data.slug,
   };
 
-  const { imageTag, commit_sha } = await BuildWithGithub(deploy_options);
+  const { imageTag, commit_sha } = await BuildWithGithub(deploy_options, onLog);
   await UpdateDeployment(deployment_id, {
     commit_sha,
   });
-  await DockerBasedDeploy(imageTag, deployment_id, service_data, true);
+  await DockerBasedDeploy(imageTag, deployment_id, service_data, true, onLog);
 }

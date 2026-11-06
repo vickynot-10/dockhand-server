@@ -8,6 +8,7 @@ import {
   UpdateDeployment,
 } from "../service/deploy.service.js";
 import { DEPLOY_TYPE, DEPLOYMENT_STATUS } from "../constants.js";
+import { CreateLogBuffer } from "../service/deploy-logs.service.js";
 
 type DeployJobData = { deployment_id: string; service_id: string };
 
@@ -17,6 +18,7 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
 
   const { deployment_id, service_id } = data.data;
 
+  const logs = CreateLogBuffer(deployment_id);
   try {
     const [service] = await db
       .select()
@@ -37,18 +39,27 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
     });
 
     if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER && service.image_url) {
-      await DockerBasedDeploy(service.image_url, deployment_id, service, false);
+      await DockerBasedDeploy(
+        service.image_url,
+        deployment_id,
+        service,
+        false,
+        logs.Push,
+      );
     }
     if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.GITHUB && service.branch) {
-      await GithubBasedDeploy(deployment_id, service);
+      await GithubBasedDeploy(deployment_id, service, logs.Push);
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    logs.Push("stderr", message);
     await UpdateDeployment(deployment_id, {
       status: DEPLOYMENT_STATUS.FAILED,
       error: message,
       finished_on: new Date(),
     });
     throw e;
+  } finally {
+    await logs.Close();
   }
 }

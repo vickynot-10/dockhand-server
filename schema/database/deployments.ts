@@ -5,18 +5,11 @@ import {
   text,
   timestamp,
   uuid,
-  jsonb,
 } from "drizzle-orm/pg-core";
 import { users } from "./user.js";
 import { projects } from "./project.js";
 import { services } from "./services.js";
 import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../../constants.js";
-
-type DeploymentLogLine = {
-  ts: number;
-  stream: "stdout" | "stderr" | "system";
-  line: string;
-};
 
 export const deployments = pgTable(
   "deployments",
@@ -42,7 +35,6 @@ export const deployments = pgTable(
     image_tag: text("image_tag"),
     container_name: text("container_name"),
 
-    logs: jsonb("logs").$type<DeploymentLogLine[]>(),
     error: text("error"),
 
     created_on: timestamp("created_on", { withTimezone: true })
