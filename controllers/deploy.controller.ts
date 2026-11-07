@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
-import { and, eq, getTableColumns, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import { deployments } from "../schema/database/deployments.js";
 
@@ -91,11 +91,43 @@ export async function RollbackToDeployment(req: Request, res: Response) {
     return send_error(res, 404, "Deployment not found !");
   }
 
+  const [inFlight] = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.service_id, service_id),
+        inArray(deployments.status, [
+          DEPLOYMENT_STATUS.QUEUED,
+          DEPLOYMENT_STATUS.BUILDING,
+        ]),
+      ),
+    );
+
+  if (inFlight) {
+    return send_error(res, 409, "A deployment is already in progress");
+  }
+
   if (
-    target.status !== DEPLOYMENT_STATUS.RUNNING ||
+    target.status !== DEPLOYMENT_STATUS.RUNNING &&
     target.status !== DEPLOYMENT_STATUS.SUPERSEDED
   ) {
-    return send_error(res, 404, `Nothing to Roll back to !`);
+    const statusMessages: Record<number, string> = {
+      [DEPLOYMENT_STATUS.QUEUED]: "Target deployment is still queued.",
+      [DEPLOYMENT_STATUS.BUILDING]: "Target deployment is still building.",
+      [DEPLOYMENT_STATUS.FAILED]: "Cannot rollback to a failed deployment.",
+      [DEPLOYMENT_STATUS.CANCELLED]:
+        "Cannot rollback to a cancelled deployment.",
+      [DEPLOYMENT_STATUS.SUSPENDED]:
+        "Cannot rollback to a suspended deployment.",
+    };
+
+    return send_error(
+      res,
+      400,
+      statusMessages[target.status] ??
+        "Target deployment is not eligible for rollback.",
+    );
   }
 
   const user_id = req.user!.id;
