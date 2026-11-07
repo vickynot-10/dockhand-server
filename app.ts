@@ -1,3 +1,4 @@
+import { createServer } from "http";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -8,16 +9,18 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { ensureDatabase } from "./config/ensure-db.js";
 import { db } from "./config/db.js";
 import { ConnectRedis, DisconnectRedis } from "./config/redis.js";
+import { InitSocket } from "./socket/socket.js";
 dotenv.config();
 
 const app = express();
 
 const PORT = process.env.PORT || 3001;
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: CLIENT_URL,
     credentials: true,
   }),
 );
@@ -39,7 +42,10 @@ async function start() {
   await ensureDatabase();
   await migrate(db, { migrationsFolder: "./migrations" });
 
-  const server = app.listen(PORT, () => {
+  const server = createServer(app);
+  InitSocket(server);
+
+  server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 
@@ -53,7 +59,7 @@ async function start() {
   process.on("SIGINT", shutdown);
 }
 
-start().catch(function (err) {
+start().catch((err) => {
   console.error("Startup failed", err);
   process.exit(1);
 });

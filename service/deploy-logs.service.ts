@@ -1,5 +1,6 @@
 import { db } from "../config/db.js";
 import { deployment_logs } from "../schema/database/deploy-logs.js";
+import { emitter } from "../utils/emitter.js";
 
 export async function InsertLogs(
   deployment_id: string,
@@ -21,6 +22,13 @@ export function CreateLogBuffer(deployment_id: string) {
     if (pending.length === 0) return chain;
     const batch = pending;
     pending = [];
+    console.log("EMITTING", batch);
+    emitter.to(`deployment:${deployment_id}`).emit(
+      "deploy_logs",
+      batch.map((item) => {
+        return { ...item, ts: new Date().toISOString() };
+      }),
+    );
     chain = chain.then(() => {
       return InsertLogs(deployment_id, batch).catch(function () {});
     });
