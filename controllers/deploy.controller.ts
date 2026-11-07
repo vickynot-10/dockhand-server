@@ -7,6 +7,9 @@ import { deployments } from "../schema/database/deployments.js";
 
 import { deployment_logs } from "../schema/database/deploy-logs.js";
 import { services } from "../schema/database/services.js";
+import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../constants.js";
+import { EnqueueDeployment } from "../queue/deploy.queue.js";
+import { UpdateDeployment } from "../service/deploy.service.js";
 
 export async function GetDeployMentlogs(req: Request, res: Response) {
   const id = req.query.id as string | undefined;
@@ -28,10 +31,17 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
     ...serviceColumns
   } = getTableColumns(services);
 
+  const {
+    user_id: deployUser,
+    project_id,
+    service_id,
+    ...deploymentCOls
+  } = getTableColumns(deployments);
+
   const [rows] = await db
     .select({
       service: serviceColumns,
-
+      deployment: deploymentCOls,
       deployment_logs: sql`
         COALESCE(
           jsonb_agg(
@@ -51,11 +61,70 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
     )
     .leftJoin(services, eq(services.id, deployments.service_id))
     .where(eq(deployments.id, id))
-    .groupBy(services.id);
+    .groupBy(services.id, deployments.id);
 
   if (!rows) {
     return send_error(res, 404, "Deployment not found!");
   }
 
   return send_success(res, 200, rows);
+}
+
+export async function RollbackToDeployment(req: Request, res: Response) {
+  const { deployment_id, service_id } = req.body;
+
+  if (!deployment_id || !service_id) {
+    return send_error(res, 400, "Invalid Payload!");
+  }
+
+  const [target] = await db
+    .select()
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.id, deployment_id),
+        eq(deployments.service_id, service_id),
+      ),
+    );
+
+  if (!target) {
+    return send_error(res, 404, "Deployment not found !");
+  }
+
+  if (
+    target.status !== DEPLOYMENT_STATUS.RUNNING ||
+    target.status !== DEPLOYMENT_STATUS.SUPERSEDED
+  ) {
+    return send_error(res, 404, `Nothing to Roll back to !`);
+  }
+
+  const user_id = req.user!.id;
+
+  const [created] = await db
+    .insert(deployments)
+    .values({
+      user_id,
+      project_id: target.project_id,
+      service_id,
+      trigger: DEPLOY_TRIGGER.ROLLBACK,
+      deploy_type: target.deploy_type,
+      status: DEPLOYMENT_STATUS.QUEUED,
+    })
+    .returning();
+
+  if (!created) {
+    throw new Error("Failed to create deployment");
+  }
+
+  try {
+    await EnqueueDeployment(created.id, service_id, deployment_id);
+  } catch (e) {
+    await UpdateDeployment(created.id, {
+      status: DEPLOYMENT_STATUS.FAILED,
+      error: "Failed to queue deployment",
+      finished_on: new Date(),
+    });
+    throw e;
+  }
+  return send_success(res, 200, target, "Rollback Deploy Started");
 }

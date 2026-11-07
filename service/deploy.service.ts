@@ -128,6 +128,7 @@ export async function DockerBasedDeploy(
       slug: service_data.slug,
       port: DEFAULT_PORT,
       hostname: host_name,
+      env_vars: service_data.env_vars ?? [],
     });
 
     // Finish deployment

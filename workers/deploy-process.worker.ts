@@ -10,14 +10,19 @@ import {
 } from "../service/deploy.service.js";
 import { DEPLOY_TYPE, DEPLOYMENT_STATUS } from "../constants.js";
 import { CreateLogBuffer } from "../service/deploy-logs.service.js";
+import { deployments } from "../schema/database/deployments.js";
 
-type DeployJobData = { deployment_id: string; service_id: string };
+type DeployJobData = {
+  deployment_id: string;
+  service_id: string;
+  rollback_id?: string;
+};
 
 export async function ProcessDeployments(data: Job<DeployJobData>) {
   if (!data || !data.data || !data.data.service_id || !data.data.deployment_id)
     return;
 
-  const { deployment_id, service_id } = data.data;
+  const { deployment_id, service_id, rollback_id } = data.data;
 
   const logs = CreateLogBuffer(deployment_id);
   try {
@@ -39,7 +44,26 @@ export async function ProcessDeployments(data: Job<DeployJobData>) {
       deploy_type: DEPLOY_TYPE_NUM,
     });
 
-    if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER) {
+    if (rollback_id) {
+      const [target] = await db
+        .select()
+        .from(deployments)
+        .where(eq(deployments.id, rollback_id));
+
+      if (!target || !target.image_tag) {
+        throw new Error("Rollback target has no image");
+      }
+
+      logs.Push("system", `Rolling back to ${rollback_id.slice(0, 8)}`);
+      await UpdateDeployment(deployment_id, { commit_sha: target.commit_sha });
+      await DockerBasedDeploy(
+        target.image_tag,
+        deployment_id,
+        service,
+        !target.image_tag.includes("@"),
+        logs.Push,
+      );
+    } else if (DEPLOY_TYPE_NUM === DEPLOY_TYPE.DOCKER) {
       if (!service.image_url) throw new Error("Image url is missing");
       await DockerBasedDeploy(
         service.image_url,

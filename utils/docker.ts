@@ -51,7 +51,12 @@ export async function RunContainer(options: RunContainerOptions) {
       [`traefik.http.services.${options.slug}.loadbalancer.server.port`]:
         String(options.port),
     },
-    Env: [`PORT=${options.port}`],
+    Env: [
+      `PORT=${options.port}`,
+      ...(options.env_vars ?? []).map((item) => {
+        return `${item.key}=${item.value}`;
+      }),
+    ],
     HostConfig: {
       NetworkMode: NETWORK,
       RestartPolicy: { Name: "unless-stopped" },

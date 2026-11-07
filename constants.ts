@@ -21,4 +21,5 @@ export const DEPLOYMENT_STATUS = {
 export const DEPLOY_TRIGGER = {
   AUTO: 1,
   MANUAL: 2,
+  ROLLBACK: 3,
 };

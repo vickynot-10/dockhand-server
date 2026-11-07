@@ -12,6 +12,7 @@ export type RunContainerOptions = {
   slug: string;
   port: number;
   hostname: string;
+  env_vars?: { key: string; value: string }[];
 };
 
 export type GitHubOptions = {
