@@ -74,25 +74,19 @@ export function InitSocket(httpServer: HttpServer) {
 
 async function CanAccessService(user_id: string, service_id: string) {
   const KEY = `${user_id}:${service_id}`;
-  if (CAN_ACCESS_HM.has(KEY)) {
-    return CAN_ACCESS_HM.get(KEY);
-  }
+  if (CAN_ACCESS_HM.get(KEY)) return true;
   const [row] = await db
     .select({ id: services.id })
     .from(services)
     .where(and(eq(services.user_id, user_id), eq(services.id, service_id)));
-  const isTrueOrFalse = Boolean(row);
-
-  CAN_ACCESS_HM.set(KEY, isTrueOrFalse);
-
-  return isTrueOrFalse;
+  if (!row) return false;
+  CAN_ACCESS_HM.set(KEY, true);
+  return true;
 }
 
 async function CanAccessDeployment(user_id: string, deployment_id: string) {
   const KEY = `${user_id}:${deployment_id}`;
-  if (CAN_ACCESS_HM.has(KEY)) {
-    return CAN_ACCESS_HM.get(KEY);
-  }
+  if (CAN_ACCESS_HM.get(KEY)) return true;
 
   const [row] = await db
     .select({ id: deployments.id })
@@ -100,9 +94,8 @@ async function CanAccessDeployment(user_id: string, deployment_id: string) {
     .where(
       and(eq(deployments.user_id, user_id), eq(deployments.id, deployment_id)),
     );
-  const isTrueOrFalse = Boolean(row);
 
-  CAN_ACCESS_HM.set(KEY, isTrueOrFalse);
-
-  return isTrueOrFalse;
+  if (!row) return false;
+  CAN_ACCESS_HM.set(KEY, true);
+  return true;
 }

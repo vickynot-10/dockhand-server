@@ -20,6 +20,7 @@ export type GitHubOptions = {
   repo_name: string;
   branch: string;
   root: string;
+
   slug: string;
 };
 
