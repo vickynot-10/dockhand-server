@@ -30,6 +30,13 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
   const repoUrl = `https://${auth}github.com/${repo_name}.git`;
 
   try {
+    if (options.type === "static") {
+      return BuildFrontendFiles(
+        options.build_command,
+        options.output_directory,
+      );
+    }
+
     const lsRemote = await simpleGit().listRemote([
       repoUrl,
       `refs/heads/${branch}`,
@@ -78,4 +85,23 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
     const message = e instanceof Error ? e.message : String(e);
     throw new Error(HideToken(message, token));
   }
+}
+
+function BuildFrontendFiles(build_command: string, output_directory: string) {
+  if (!build_command) throw new Error("Build Command is not Configured");
+  if (!output_directory) throw new Error("Output Directory is not Configured");
+
+  const nginx_config =
+    "server { listen 80; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }";
+
+  return [
+    "FROM node:20-alpine AS build",
+    "WORKDIR /app",
+    "COPY . .",
+    `RUN ${build_command}`,
+    "FROM nginx:alpine",
+    `COPY --from=build /app/${output_directory} /usr/share/nginx/html`,
+    `RUN echo '${nginx_config}' > /etc/nginx/conf.d/default.conf`,
+    "EXPOSE 80",
+  ].join("\n");
 }

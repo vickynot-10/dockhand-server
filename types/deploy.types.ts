@@ -20,8 +20,10 @@ export type GitHubOptions = {
   repo_name: string;
   branch: string;
   root: string;
-
+  type: string;
   slug: string;
+  build_command: string;
+  output_directory: string;
 };
 
 export type OnLog = (stream: string, line: string) => void;

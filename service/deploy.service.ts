@@ -19,6 +19,8 @@ import { config } from "dotenv";
 import { services } from "../schema/database/services.js";
 import { BuildWithGithub } from "../utils/github.js";
 import { emitter } from "../utils/emitter.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 config();
 
@@ -204,7 +206,10 @@ export async function GithubBasedDeploy(
     branch,
     root,
     user_id: service_data.user_id,
+    type: service_data.type,
     slug: service_data.slug,
+    output_directory: service_data.output_directory as string,
+    build_command: service_data.build_command as string,
   };
 
   const { imageTag, commit_sha } = await BuildWithGithub(deploy_options, onLog);
