@@ -24,6 +24,7 @@ export type GitHubOptions = {
   slug: string;
   build_command: string;
   output_directory: string;
+  env_vars?: { key: string; value: string }[];
 };
 
 export type OnLog = (stream: string, line: string) => void;

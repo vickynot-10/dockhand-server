@@ -5,7 +5,13 @@ import { decrypt } from "../libs/crypto.js";
 import { simpleGit } from "simple-git";
 import Docker from "dockerode";
 import type { GitHubOptions, OnLog } from "../types/deploy.types.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 const docker = new Docker();
+
+const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 export async function getGithubToken(userId: string) {
   const [user] = await db
     .select({ github_token: users.github_token })
@@ -25,18 +31,11 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
   const token = await getGithubToken(options.user_id);
   const auth = token ? `x-access-token:${token}@` : "";
 
-  const { repo_name, branch, root, slug } = options;
+  const { repo_name, branch, slug } = options;
 
   const repoUrl = `https://${auth}github.com/${repo_name}.git`;
 
   try {
-    if (options.type === "static") {
-      return BuildFrontendFiles(
-        options.build_command,
-        options.output_directory,
-      );
-    }
-
     const lsRemote = await simpleGit().listRemote([
       repoUrl,
       `refs/heads/${branch}`,
@@ -46,40 +45,22 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
       throw new Error("Branch not found");
     }
     onLog?.("system", `Building ${repo_name}@${commit_sha.slice(0, 7)}`);
-    const remote = `${repoUrl}#${branch}${root ? `:${root}` : ""}`;
 
     const imageTag = `${slug}:${commit_sha.slice(0, 12)}`;
 
-    const buildImg = await docker.buildImage(
-      null as unknown as NodeJS.ReadableStream,
-      {
-        remote,
-        t: imageTag,
-      },
-    );
-
-    function HandleEvent(event: { stream?: string; error?: string }) {
-      if (event.stream) {
-        for (const line of event.stream.split("\n")) {
-          if (line.trim()) onLog?.("stdout", HideToken(line, token));
-        }
-      }
+    if (options.type === "static") {
+      await BuildStaticImage(repoUrl, options, imageTag, token, onLog);
+      return { imageTag, commit_sha };
     }
 
-    await new Promise<void>((resolve, reject) => {
-      docker.modem.followProgress(
-        buildImg,
-        (err: Error | null, result) => {
-          if (err) {
-            return reject(err);
-          }
-          const isFailed = result.find((val) => val.error);
-          if (isFailed) return reject(new Error(isFailed.error));
-          resolve();
-        },
-        HandleEvent,
-      );
-    });
+    // const buildImg = await docker.buildImage(
+    //   null as unknown as NodeJS.ReadableStream,
+    //   {
+    //     remote,
+    //     t: imageTag,
+    //   },
+    // );
+
     return { imageTag, commit_sha };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -87,16 +68,60 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
   }
 }
 
-function BuildFrontendFiles(build_command: string, output_directory: string) {
+function ContinuteBuildStream(
+  stream: NodeJS.ReadableStream,
+  token: string | null,
+  onLog?: OnLog,
+) {
+  function HandleEvent(event: { stream?: string; error?: string }) {
+    if (!event.stream) return;
+    for (const line of event.stream.split("\n")) {
+      if (line.trim()) onLog?.("stdout", HideToken(line, token));
+    }
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    docker.modem.followProgress(
+      stream,
+      (err: Error | null, result) => {
+        if (err) return reject(err);
+        const isFailed = result.find((val) => val.error);
+        if (isFailed) return reject(new Error(isFailed.error));
+        resolve();
+      },
+      HandleEvent,
+    );
+  });
+}
+
+async function BuildStaticImage(
+  repoUrl: string,
+  options: GitHubOptions,
+  imageTag: string,
+  token: string | null,
+  onLog?: OnLog,
+) {
+  const { build_command, output_directory } = options;
+
   if (!build_command) throw new Error("Build Command is not Configured");
   if (!output_directory) throw new Error("Output Directory is not Configured");
+
+  const env_vars = (options.env_vars ?? []).filter((item) => {
+    return ENV_KEY_REGEX.test(item.key);
+  });
+
+  const buildargs: Record<string, string> = {};
+  for (const item of env_vars) {
+    buildargs[item.key] = item.value;
+  }
 
   const nginx_config =
     "server { listen 80; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }";
 
-  return [
+  const dockerfile = [
     "FROM node:20-alpine AS build",
     "WORKDIR /app",
+    ...env_vars.map((key) => `ARG ${key.key}`),
     "COPY . .",
     `RUN ${build_command}`,
     "FROM nginx:alpine",
@@ -104,4 +129,34 @@ function BuildFrontendFiles(build_command: string, output_directory: string) {
     `RUN echo '${nginx_config}' > /etc/nginx/conf.d/default.conf`,
     "EXPOSE 80",
   ].join("\n");
+
+  const work_dir = await mkdtemp(join(tmpdir(), "dockhand-"));
+
+  try {
+    onLog?.("system", "Cloning repository");
+    await simpleGit().clone(repoUrl, work_dir, [
+      "--depth",
+      "1",
+      "--branch",
+      options.branch,
+    ]);
+
+    const context_dir = join(work_dir, options.root);
+    await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
+
+    const entries = (await readdir(context_dir)).filter((name) => {
+      return name !== ".git";
+    });
+
+    const buildImg = await docker.buildImage(
+      { context: context_dir, src: entries },
+      { t: imageTag, dockerfile: "Dockerfile.dockhand", buildargs },
+    );
+
+    await ContinuteBuildStream(buildImg, token, onLog);
+  } catch (e) {
+    throw e;
+  } finally {
+    await rm(work_dir, { recursive: true, force: true });
+  }
 }

@@ -210,6 +210,7 @@ export async function GithubBasedDeploy(
     slug: service_data.slug,
     output_directory: service_data.output_directory as string,
     build_command: service_data.build_command as string,
+    env_vars: service_data.env_vars ?? [],
   };
 
   const { imageTag, commit_sha } = await BuildWithGithub(deploy_options, onLog);
