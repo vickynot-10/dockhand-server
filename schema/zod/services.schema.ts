@@ -50,8 +50,7 @@ const env_var_schema = z.object({
   value: z.string(),
 });
 
-const github_schema = z.object({
-  ...base_fields,
+const github_fields = {
   deploy_type: z.literal(DEPLOY_TYPE.GITHUB),
   repo_id: z
     .number({ error: "Repository is required" })
@@ -82,25 +81,36 @@ const github_schema = z.object({
       seen.add(v.key);
     });
   }),
-});
+};
 
-const docker_schema = z.object({
-  ...base_fields,
+const docker_fields = {
   deploy_type: z.literal(DEPLOY_TYPE.DOCKER),
-
   image_url: z
     .string({ error: "Image URL is required" })
     .trim()
     .min(1, "Image URL is required")
     .regex(/^\S+$/, "Image URL cannot contain spaces"),
-});
+};
+
+const service_id_field = {
+  service_id: z.string({ error: "ID is required" }).uuid("Invalid service ID"),
+};
+
+const github_schema = z.object({ ...base_fields, ...github_fields });
+const docker_schema = z.object({ ...base_fields, ...docker_fields });
 
 export const SaveServiceSchema = z.discriminatedUnion("deploy_type", [
   github_schema,
   docker_schema,
 ]);
 
+export const EditServiceSchema = z.discriminatedUnion("deploy_type", [
+  z.object({ ...service_id_field, ...base_fields, ...github_fields }),
+  z.object({ ...service_id_field, ...base_fields, ...docker_fields }),
+]);
+
 export type SaveServiceInput = z.infer<typeof SaveServiceSchema>;
+export type EditServiceInput = z.infer<typeof EditServiceSchema>;
 
 export const ActionServiceSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),

@@ -105,13 +105,11 @@ export async function AddOrEditProject(req: Request, res: Response) {
 }
 
 export async function DeleteProject(req: Request, res: Response) {
-  const { id } = req.params;
+  const id = req.params.id as string | undefined;
 
   if (!id) {
     return send_error(res, 400, "Invalid Project");
   }
-
-  const userId = req.user!.id;
 
   const [delete_project] = await db
     .delete(projects)

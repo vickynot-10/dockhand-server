@@ -1,13 +1,22 @@
 import type { Request, Response } from "express";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
-import { and, eq, getTableColumns, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 import { services } from "../schema/database/services.js";
 import {
   ActionServiceSchema,
+  EditServiceSchema,
   SaveServiceSchema,
 } from "../schema/zod/services.schema.js";
-import { CreateService } from "../service/service.service.js";
+import { CreateService, UpdateService } from "../service/service.service.js";
 import { DeployService } from "../service/deploy.service.js";
 import { deployments } from "../schema/database/deployments.js";
 import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../constants.js";
@@ -55,6 +64,33 @@ export async function GetServiceByID(req: Request, res: Response) {
     .leftJoin(deployments, eq(deployments.service_id, services.id))
     .where(eq(services.id, id))
     .groupBy(services.id);
+  if (!rows) return send_error(res, 404, "Service not found!");
+  return send_success(res, 200, rows);
+}
+
+export async function GetServiceByIDForEdit(req: Request, res: Response) {
+  const id: string | undefined = req.query!.id as string | undefined;
+
+  if (!id) {
+    return send_error(res, 400, "Invalid Payload !");
+  }
+
+  const {
+    user_id,
+    env_vars,
+    slug,
+    root_directory,
+    build_command,
+    output_directory,
+    repo_id,
+    created_on,
+    updated_on,
+    ...serviceColumns
+  } = getTableColumns(services);
+
+  const [rows] = await db.select().from(services).where(eq(services.id, id));
+
+  if (!rows) return send_error(res, 404, "Service not found!");
   return send_success(res, 200, rows);
 }
 
@@ -103,6 +139,71 @@ export async function SaveServices(req: Request, res: Response) {
 
   if (!service) {
     return send_error(res, 400, "Failed to Insert !");
+  }
+
+  try {
+    await DeployService({
+      user_id: userId,
+      project_id: service.project_id,
+      service_id: service.id,
+      deploy_type: service.deploy_type,
+      trigger_type: DEPLOY_TRIGGER.AUTO,
+    });
+    return send_success(res, 201, null, "Deploy Added to Queue !");
+  } catch {
+    return send_error(
+      res,
+      500,
+      "Service saved but deployment could not be queued",
+    );
+  }
+}
+
+export async function EditServices(req: Request, res: Response) {
+  const userId = req.user!.id;
+
+  const parsed = EditServiceSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return send_error(
+      res,
+      400,
+      parsed.error.issues[0]?.message ?? "Fill All required Fields",
+    );
+  }
+
+  const data = parsed.data;
+
+  const isSlugExists = await db
+    .select({ slug: services.slug })
+    .from(services)
+    .where(and(eq(services.slug, data.slug), ne(services.id, data.service_id)));
+
+  if (isSlugExists.length > 0) {
+    return send_error(
+      res,
+      409,
+      `A Subdomain with ${data.slug} already Exists !`,
+    );
+  }
+
+  let service;
+
+  try {
+    service = await UpdateService(data);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return send_error(
+        res,
+        409,
+        `A Subdomain with ${data.slug} already Exists !`,
+      );
+    }
+    throw error;
+  }
+
+  if (!service) {
+    return send_error(res, 404, "Service not found !");
   }
 
   try {
