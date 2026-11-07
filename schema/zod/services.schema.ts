@@ -67,7 +67,7 @@ const github_fields = {
     .min(1, "Root directory is required")
     .refine((v) => !v.split("/").includes(".."), "Invalid root directory"),
   build_command: z.string().trim().min(1, "Build command is required"),
-  output_directory: z.string().trim().min(1, "Output directory is required"),
+  output_directory: z.string().trim().default(""),
   env_vars: z.array(env_var_schema).superRefine(function (vars, ctx) {
     const seen = new Set<string>();
     vars.forEach(function (v, index) {
