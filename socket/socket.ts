@@ -8,7 +8,16 @@ import { deployments } from "../schema/database/deployments.js";
 import { db } from "../config/db.js";
 import { decryptToken } from "../libs/jwt.js";
 import { COOKIE } from "../constants.js";
+import { services } from "../schema/database/services.js";
 
+const CAN_ACCESS_HM = new Map<string, boolean>();
+
+setInterval(
+  () => {
+    CAN_ACCESS_HM.clear();
+  },
+  5 * 60 * 1000,
+); // 1hour
 export function InitSocket(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     cors: {
@@ -40,6 +49,12 @@ export function InitSocket(httpServer: HttpServer) {
   });
 
   io.on("connection", (socket) => {
+    socket.on("join_service", async function (service_id: string) {
+      const allowed = await CanAccessService(socket.data.user_id, service_id);
+      if (!allowed) return;
+      socket.join(`service:${service_id}`);
+    });
+
     socket.on("join_deployment", async (deployment_id: string) => {
       const allowed = await CanAccessDeployment(
         socket.data.user_id,
@@ -57,13 +72,37 @@ export function InitSocket(httpServer: HttpServer) {
   return io;
 }
 
+async function CanAccessService(user_id: string, service_id: string) {
+  const KEY = `${user_id}:${service_id}`;
+  if (CAN_ACCESS_HM.has(KEY)) {
+    return CAN_ACCESS_HM.get(KEY);
+  }
+  const [row] = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(and(eq(services.user_id, user_id), eq(services.id, service_id)));
+  const isTrueOrFalse = Boolean(row);
+
+  CAN_ACCESS_HM.set(KEY, isTrueOrFalse);
+
+  return isTrueOrFalse;
+}
+
 async function CanAccessDeployment(user_id: string, deployment_id: string) {
+  const KEY = `${user_id}:${deployment_id}`;
+  if (CAN_ACCESS_HM.has(KEY)) {
+    return CAN_ACCESS_HM.get(KEY);
+  }
+
   const [row] = await db
     .select({ id: deployments.id })
     .from(deployments)
     .where(
       and(eq(deployments.user_id, user_id), eq(deployments.id, deployment_id)),
     );
+  const isTrueOrFalse = Boolean(row);
 
-  return Boolean(row);
+  CAN_ACCESS_HM.set(KEY, isTrueOrFalse);
+
+  return isTrueOrFalse;
 }

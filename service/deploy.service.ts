@@ -18,6 +18,7 @@ import {
 import { config } from "dotenv";
 import { services } from "../schema/database/services.js";
 import { BuildWithGithub } from "../utils/github.js";
+import { emitter } from "../utils/emitter.js";
 
 config();
 
@@ -62,10 +63,24 @@ export async function UpdateDeployment(
   deployment_id: string,
   values: Partial<typeof deployments.$inferInsert>,
 ) {
-  await db
+  const rows = await db
     .update(deployments)
     .set(values)
-    .where(eq(deployments.id, deployment_id));
+    .where(eq(deployments.id, deployment_id))
+    .returning({
+      id: deployments.id,
+      service_id: deployments.service_id,
+      status: deployments.status,
+    });
+
+  if (values.status === undefined) return;
+
+  for (const row of rows) {
+    emitter.to(`service:${row.service_id}`).emit("deployment_status", {
+      deployment_id: row.id,
+      status: row.status,
+    });
+  }
 }
 
 async function RemoveOldContainers(
