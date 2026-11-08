@@ -1,5 +1,5 @@
 {
-  "id": "46d12ea4-2deb-4cf2-ae00-7a6d2fb9cf6a",
+  "id": "b2dafb18-d937-4339-9488-a2d3d4963508",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -219,6 +219,12 @@
         },
         "repo_id": {
           "name": "repo_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "repo_type": {
+          "name": "repo_type",
           "type": "integer",
           "primaryKey": false,
           "notNull": false

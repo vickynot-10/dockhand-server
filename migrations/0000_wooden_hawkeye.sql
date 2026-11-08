@@ -33,6 +33,7 @@ CREATE TABLE "services" (
 	"deploy_type" integer NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"repo_id" integer,
+	"repo_type" integer,
 	"repo_full_name" text,
 	"branch" text,
 	"root_directory" text,
