@@ -40,17 +40,19 @@ export async function GetProjectsServices(req: Request, res: Response) {
 
       services: sql`
       COALESCE(
-        json_agg(
+        jsonb_agg(
           json_build_object(
+          
             'id', ${services.id},
             'service_name' , ${services.name},
             'deploy_type' , ${services.deploy_type},
             'type' , ${services.type},
             'enabled' , ${services.enabled},
-            'updated_on', ${services.updated_on}
+            'updated_on', ${services.updated_on},
+            'host' , ${services.host}
           )
         ) FILTER (WHERE ${services.id} IS NOT NULL),
-        '[]'::json
+        '[]'::jsonb
       )
     `,
     })

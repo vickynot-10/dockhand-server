@@ -6,7 +6,7 @@ import { simpleGit } from "simple-git";
 import Docker from "dockerode";
 import type { GitHubOptions, OnLog } from "../types/deploy.types.js";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 const docker = new Docker();
 
@@ -110,6 +110,10 @@ async function BuildStaticImage(
     return ENV_KEY_REGEX.test(item.key);
   });
 
+  const safe_output = output_directory
+    .replace(/^\.?\/+/, "")
+    .replace(/\/+$/, "");
+
   const buildargs: Record<string, string> = {};
   for (const item of env_vars) {
     buildargs[item.key] = item.value;
@@ -125,12 +129,21 @@ async function BuildStaticImage(
     "COPY . .",
     `RUN ${build_command}`,
     "FROM nginx:alpine",
-    `COPY --from=build /app/${output_directory} /usr/share/nginx/html`,
+    `COPY --from=build /app/${safe_output} /usr/share/nginx/html`,
     `RUN echo '${nginx_config}' > /etc/nginx/conf.d/default.conf`,
     "EXPOSE 80",
   ].join("\n");
 
   const work_dir = await mkdtemp(join(tmpdir(), "dockhand-"));
+
+  const context_dir = resolve(work_dir, "." + sep + options.root);
+  if (context_dir !== work_dir && !context_dir.startsWith(work_dir + sep)) {
+    throw new Error("Invalid root directory");
+  }
+
+  if (safe_output.split("/").includes("..")) {
+    throw new Error("Invalid output directory");
+  }
 
   try {
     onLog?.("system", "Cloning repository");

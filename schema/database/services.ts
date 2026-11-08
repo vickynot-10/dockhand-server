@@ -35,6 +35,7 @@ export const services = pgTable("services", {
 
   // GitHub deployment
   repo_id: integer("repo_id"),
+  repo_type: integer("repo_type"),
   repo_full_name: text("repo_full_name"),
   branch: text("branch"),
   root_directory: text("root_directory"),

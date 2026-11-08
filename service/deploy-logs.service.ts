@@ -22,7 +22,6 @@ export function CreateLogBuffer(deployment_id: string) {
     if (pending.length === 0) return chain;
     const batch = pending;
     pending = [];
-    console.log("EMITTING", batch);
     emitter.to(`deployment:${deployment_id}`).emit(
       "deploy_logs",
       batch.map((item) => {
