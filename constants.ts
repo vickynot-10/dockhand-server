@@ -28,3 +28,12 @@ export const GITHUB_REPO_TYPE = {
   PUBLIC: 1,
   PRIVATE: 2,
 };
+
+export const RUNTIMES = {
+  NODE: 1,
+  PYTHON: 2,
+  JAVA: 3,
+  RUBY: 4,
+  ELXIR: 5,
+  RUST: 6,
+};

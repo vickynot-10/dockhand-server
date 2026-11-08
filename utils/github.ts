@@ -8,6 +8,7 @@ import type { GitHubOptions, OnLog } from "../types/deploy.types.js";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { RUNTIMES } from "../constants.js";
 const docker = new Docker();
 
 const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -53,14 +54,7 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
       return { imageTag, commit_sha };
     }
 
-    // const buildImg = await docker.buildImage(
-    //   null as unknown as NodeJS.ReadableStream,
-    //   {
-    //     remote,
-    //     t: imageTag,
-    //   },
-    // );
-
+    await BuildWebServices(repoUrl, options, imageTag, token, onLog);
     return { imageTag, commit_sha };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -94,6 +88,17 @@ function ContinuteBuildStream(
   });
 }
 
+function GetEnvVars(vars: { key: string; value: string }[]) {
+  const env_vars = (vars ?? []).filter((item) => {
+    return ENV_KEY_REGEX.test(item.key);
+  });
+  const buildargs: Record<string, string> = {};
+  for (const item of env_vars) {
+    buildargs[item.key] = item.value;
+  }
+  return { env_vars, buildargs };
+}
+
 async function BuildStaticImage(
   repoUrl: string,
   options: GitHubOptions,
@@ -106,18 +111,11 @@ async function BuildStaticImage(
   if (!build_command) throw new Error("Build Command is not Configured");
   if (!output_directory) throw new Error("Output Directory is not Configured");
 
-  const env_vars = (options.env_vars ?? []).filter((item) => {
-    return ENV_KEY_REGEX.test(item.key);
-  });
-
   const safe_output = output_directory
     .replace(/^\.?\/+/, "")
     .replace(/\/+$/, "");
 
-  const buildargs: Record<string, string> = {};
-  for (const item of env_vars) {
-    buildargs[item.key] = item.value;
-  }
+  const { env_vars, buildargs } = GetEnvVars(options.env_vars ?? []);
 
   const listen_port = Number(options.port) || 80;
   const nginx_config = `server { listen ${listen_port}; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }`;
@@ -136,16 +134,13 @@ async function BuildStaticImage(
 
   const work_dir = await mkdtemp(join(tmpdir(), "dockhand-"));
 
-  const context_dir = resolve(work_dir, "." + sep + options.root);
-  if (context_dir !== work_dir && !context_dir.startsWith(work_dir + sep)) {
-    throw new Error("Invalid root directory");
-  }
-
-  if (safe_output.split("/").includes("..")) {
-    throw new Error("Invalid output directory");
-  }
-
   try {
+    const context_dir = join(work_dir, options.root);
+    await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
+
+    if (safe_output.split("/").includes("..")) {
+      throw new Error("Invalid output directory");
+    }
     onLog?.("system", "Cloning repository");
     await simpleGit().clone(repoUrl, work_dir, [
       "--depth",
@@ -154,13 +149,81 @@ async function BuildStaticImage(
       options.branch,
     ]);
 
-    const context_dir = join(work_dir, options.root);
+    const entries = (await readdir(context_dir)).filter((name) => {
+      return name !== ".git";
+    });
+
+    const buildImg = await docker.buildImage(
+      { context: context_dir, src: entries },
+      { t: imageTag, dockerfile: "Dockerfile.dockhand", buildargs },
+    );
+
+    await ContinuteBuildStream(buildImg, token, onLog);
+  } catch (e) {
+    throw e;
+  } finally {
+    await rm(work_dir, { recursive: true, force: true });
+  }
+}
+
+const RUNTIME_IMAGES: Record<number, string> = {
+  [RUNTIMES.NODE]: "node:20-alpine",
+  [RUNTIMES.PYTHON]: "python:3.12-slim",
+  [RUNTIMES.JAVA]: "maven:3-eclipse-temurin-21",
+  [RUNTIMES.RUBY]: "ruby:3.3-slim",
+  [RUNTIMES.ELXIR]: "elixir:1.17-alpine",
+  [RUNTIMES.RUST]: "rust:1-slim",
+};
+
+async function BuildWebServices(
+  repoUrl: string,
+  options: GitHubOptions,
+  imageTag: string,
+  token: string | null,
+  onLog?: OnLog,
+) {
+  const { build_command, start_command } = options;
+
+  const base_image = RUNTIME_IMAGES[Number(options.runtime)];
+  if (!base_image) throw new Error("Unsupported runtime");
+  if (!build_command) throw new Error("Build Command is not Configured");
+  if (!start_command) throw new Error("Start Command is not Configured");
+
+  const { env_vars, buildargs } = GetEnvVars(options.env_vars ?? []);
+
+  const port = Number(options.port) || 3000;
+
+  const dockerfile = [
+    `FROM ${base_image}`,
+    "WORKDIR /app",
+    ...env_vars.map((el) => `ARG ${el.key}`),
+    "COPY . .",
+    `RUN ${build_command}`,
+    `ENV PORT=${port}`,
+    `EXPOSE ${port}`,
+    `CMD ["sh", "-c", ${JSON.stringify(start_command)}]`,
+  ].join("\n");
+
+  const work_dir = await mkdtemp(join(tmpdir(), "dockhand-"));
+
+  try {
+    const context_dir = resolve(work_dir, "." + sep + options.root);
+    if (context_dir !== work_dir && !context_dir.startsWith(work_dir + sep)) {
+      throw new Error("Invalid root directory");
+    }
+    onLog?.("system", "Cloning repository");
+
+    await simpleGit().clone(repoUrl, work_dir, [
+      "--depth",
+      "1",
+      "--branch",
+      options.branch,
+    ]);
     await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
 
     const entries = (await readdir(context_dir)).filter((name) => {
       return name !== ".git";
     });
-
     const buildImg = await docker.buildImage(
       { context: context_dir, src: entries },
       { t: imageTag, dockerfile: "Dockerfile.dockhand", buildargs },

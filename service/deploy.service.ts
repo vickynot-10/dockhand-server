@@ -204,6 +204,8 @@ export async function GithubBasedDeploy(
     branch,
     root,
     user_id: service_data.user_id,
+    runtime: Number(service_data.runtime),
+    start_command: service_data.start_command,
     type: service_data.type,
     slug: service_data.slug,
     port: service_data.port,

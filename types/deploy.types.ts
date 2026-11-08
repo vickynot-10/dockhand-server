@@ -23,6 +23,8 @@ export type GitHubOptions = {
   type: string;
   slug: string;
   build_command: string;
+  runtime: number;
+  start_command: string | null;
   output_directory: string;
   port: number;
   env_vars?: { key: string; value: string }[];

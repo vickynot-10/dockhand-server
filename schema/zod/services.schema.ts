@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEPLOY_TYPE, GITHUB_REPO_TYPE } from "../../constants.js";
+import { DEPLOY_TYPE, GITHUB_REPO_TYPE, RUNTIMES } from "../../constants.js";
 
 const RESERVED_SLUGS = [
   "www",
@@ -70,7 +70,10 @@ const github_fields = {
     .min(1, "Root directory is required")
     .refine((v) => !v.split("/").includes(".."), "Invalid root directory"),
   build_command: z.string().trim().min(1, "Build command is required"),
+  runtime: z.coerce.number().int().default(RUNTIMES.NODE),
+  start_command: z.string().trim().default(""),
   output_directory: z.string().trim().default(""),
+
   env_vars: z.array(env_var_schema).superRefine(function (vars, ctx) {
     const seen = new Set<string>();
     vars.forEach(function (v, index) {
@@ -99,28 +102,69 @@ const service_id_field = {
   service_id: z.string({ error: "ID is required" }).uuid("Invalid service ID"),
 };
 
-const github_schema = z
-  .object({ ...base_fields, ...github_fields })
-  .superRefine(function (data, ctx) {
-    if (data.repo_type === GITHUB_REPO_TYPE.PRIVATE && !data.repo_id) {
+function checkGithubFields(
+  data: {
+    type: string;
+    repo_type: number;
+    repo_id: number | null;
+    runtime: number;
+    start_command: string;
+    output_directory: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.repo_type === GITHUB_REPO_TYPE.PRIVATE && !data.repo_id) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Repository is required",
+      path: ["repo_id"],
+    });
+  }
+
+  if (data.type === "web") {
+    if (!Object.values(RUNTIMES).includes(data.runtime)) {
       ctx.addIssue({
         code: "custom",
-        message: "Repository is required",
-        path: ["repo_id"],
+        message: "Runtime is required",
+        path: ["runtime"],
       });
     }
-  });
+    if (!data.start_command) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Start command is required",
+        path: ["start_command"],
+      });
+    }
+  }
+
+  if (data.type === "static" && !data.output_directory) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Output directory is required",
+      path: ["output_directory"],
+    });
+  }
+}
+
+const github_schema = z
+  .object({ ...base_fields, ...github_fields })
+  .superRefine(checkGithubFields);
+
+const github_edit_schema = z
+  .object({ ...service_id_field, ...base_fields, ...github_fields })
+  .superRefine(checkGithubFields);
+
+export const EditServiceSchema = z.discriminatedUnion("deploy_type", [
+  github_edit_schema,
+  z.object({ ...service_id_field, ...base_fields, ...docker_fields }),
+]);
 
 const docker_schema = z.object({ ...base_fields, ...docker_fields });
 
 export const SaveServiceSchema = z.discriminatedUnion("deploy_type", [
   github_schema,
   docker_schema,
-]);
-
-export const EditServiceSchema = z.discriminatedUnion("deploy_type", [
-  z.object({ ...service_id_field, ...base_fields, ...github_fields }),
-  z.object({ ...service_id_field, ...base_fields, ...docker_fields }),
 ]);
 
 export type SaveServiceInput = z.infer<typeof SaveServiceSchema>;

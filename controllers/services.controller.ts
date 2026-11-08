@@ -75,19 +75,6 @@ export async function GetServiceByIDForEdit(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload !");
   }
 
-  const {
-    user_id,
-    env_vars,
-    slug,
-    root_directory,
-    build_command,
-    output_directory,
-    repo_id,
-    created_on,
-    updated_on,
-    ...serviceColumns
-  } = getTableColumns(services);
-
   const [rows] = await db.select().from(services).where(eq(services.id, id));
 
   if (!rows) return send_error(res, 404, "Service not found!");
