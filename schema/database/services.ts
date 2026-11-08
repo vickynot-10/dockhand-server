@@ -40,7 +40,12 @@ export const services = pgTable("services", {
   branch: text("branch"),
   root_directory: text("root_directory"),
   build_command: text("build_command"),
+
+  runtime: integer("runtime"),
+  start_command: text("start_command"),
+
   output_directory: text("output_directory"),
+
   env_vars: jsonb("env_vars").$type<{ key: string; value: string }[]>(),
 
   // Docker deployment
