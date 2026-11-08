@@ -119,8 +119,8 @@ async function BuildStaticImage(
     buildargs[item.key] = item.value;
   }
 
-  const nginx_config =
-    "server { listen 80; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }";
+  const listen_port = Number(options.port) || 80;
+  const nginx_config = `server { listen ${listen_port}; root /usr/share/nginx/html; location / { try_files $uri /index.html; } }`;
 
   const dockerfile = [
     "FROM node:20-alpine AS build",
@@ -131,7 +131,7 @@ async function BuildStaticImage(
     "FROM nginx:alpine",
     `COPY --from=build /app/${safe_output} /usr/share/nginx/html`,
     `RUN echo '${nginx_config}' > /etc/nginx/conf.d/default.conf`,
-    "EXPOSE 80",
+    `EXPOSE ${listen_port}`,
   ].join("\n");
 
   const work_dir = await mkdtemp(join(tmpdir(), "dockhand-"));

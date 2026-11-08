@@ -24,6 +24,7 @@ export type GitHubOptions = {
   slug: string;
   build_command: string;
   output_directory: string;
+  port: number;
   env_vars?: { key: string; value: string }[];
 };
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEPLOY_TYPE } from "../../constants.js";
+import { DEPLOY_TYPE, GITHUB_REPO_TYPE } from "../../constants.js";
 
 const RESERVED_SLUGS = [
   "www",
@@ -52,15 +52,18 @@ const env_var_schema = z.object({
 
 const github_fields = {
   deploy_type: z.literal(DEPLOY_TYPE.GITHUB),
-  repo_id: z
-    .number({ error: "Repository is required" })
-    .int()
-    .positive("Repository is required"),
+  repo_id: z.number().int().positive().nullable().default(null),
   repo_full_name: z
     .string()
     .trim()
     .regex(/^[\w.-]+\/[\w.-]+$/, "Invalid repository"),
   branch: z.string().trim().min(1, "Branch is required"),
+  repo_type: z.coerce
+    .number()
+    .refine(
+      (v) => Object.values(GITHUB_REPO_TYPE).includes(v as 1 | 2),
+      "Invalid repository type",
+    ),
   root_directory: z
     .string()
     .trim()
@@ -96,7 +99,18 @@ const service_id_field = {
   service_id: z.string({ error: "ID is required" }).uuid("Invalid service ID"),
 };
 
-const github_schema = z.object({ ...base_fields, ...github_fields });
+const github_schema = z
+  .object({ ...base_fields, ...github_fields })
+  .superRefine(function (data, ctx) {
+    if (data.repo_type === GITHUB_REPO_TYPE.PRIVATE && !data.repo_id) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Repository is required",
+        path: ["repo_id"],
+      });
+    }
+  });
+
 const docker_schema = z.object({ ...base_fields, ...docker_fields });
 
 export const SaveServiceSchema = z.discriminatedUnion("deploy_type", [
