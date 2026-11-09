@@ -4,6 +4,7 @@ import {
   EditServices,
   GetServiceByID,
   GetServiceByIDForEdit,
+  GetServicesList,
   SaveServices,
   ServicesActions,
 } from "../controllers/services.controller.js";
@@ -15,6 +16,7 @@ router.post("/", SaveServices);
 router.put("/", EditServices);
 router.post("/deploy", DeployServices);
 router.get("/", GetServiceByID);
+router.get("/list", GetServicesList);
 router.get("/get-service", GetServiceByIDForEdit);
 router.post("/actions", ServicesActions);
 

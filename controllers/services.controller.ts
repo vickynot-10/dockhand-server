@@ -346,3 +346,16 @@ export async function ServicesActions(req: Request, res: Response) {
     `${updated.length} service(s) ${action === "resume" ? "resumed" : "suspended"} successfully !`,
   );
 }
+
+export async function GetServicesList(req: Request, res: Response) {
+  const rows = await db
+    .select({
+      name: services.name,
+      id: services.id,
+      deploy_type: services.deploy_type,
+      type: services.type,
+    })
+    .from(services)
+    .orderBy(services.updated_on);
+  return send_success(res, 200, rows);
+}

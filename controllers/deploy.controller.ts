@@ -1,7 +1,17 @@
 import type { Request, Response } from "express";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
-import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  SQL,
+  sql,
+} from "drizzle-orm";
 
 import { deployments } from "../schema/database/deployments.js";
 
@@ -68,6 +78,68 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
   }
 
   return send_success(res, 200, rows);
+}
+
+type DeployParams = {
+  page?: string;
+  limit?: string;
+  search?: string;
+  service_id?: string | null;
+};
+
+export async function GetDeployMentlogsTable(req: Request, res: Response) {
+  const { page, limit, search, service_id } = req.query as DeployParams;
+
+  const currentPage = Math.max(Number(page) || 1, 1);
+  const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const offsetValue = (currentPage - 1) * pageSize;
+
+  const user_id = req.user!.id;
+
+  const conditions: SQL[] = [eq(deployments.user_id, user_id)];
+
+  if (service_id) {
+    conditions.push(eq(deployments.service_id, service_id));
+  }
+
+  if (search) {
+    conditions.push(ilike(services.name, `%${search}%`));
+  }
+
+  const where_clause = and(...conditions);
+
+  const [[total], rows] = await Promise.all([
+    db
+      .select({ count: count() })
+      .from(deployments)
+      .leftJoin(services, eq(services.id, deployments.service_id))
+      .where(where_clause),
+    db
+      .select({
+        deployment_id: deployments.id,
+        status: deployments.status,
+        deploy_type: deployments.deploy_type,
+        trigger: deployments.trigger,
+        finished_on: deployments.finished_on,
+        created_on: deployments.created_on,
+        started_on: deployments.started_on,
+        enabled: services.enabled,
+        service_id: deployments.service_id,
+        service_name: services.name,
+        service_type: services.type,
+        service_host: services.host,
+        image_url: services.image_url,
+        repo_full_name: services.repo_full_name,
+      })
+      .from(deployments)
+      .leftJoin(services, eq(services.id, deployments.service_id))
+      .where(where_clause)
+      .orderBy(desc(deployments.created_on))
+      .offset(offsetValue)
+      .limit(pageSize),
+  ]);
+
+  return send_success(res, 200, { total: total?.count ?? 0, rows });
 }
 
 export async function RollbackToDeployment(req: Request, res: Response) {
