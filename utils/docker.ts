@@ -5,7 +5,7 @@ import { MEMORY_LIMIT_MB } from "../constants.js";
 
 config();
 const docker = new Docker();
-
+const STABLE_MS = 8000;
 const NETWORK = process.env.DEPLOY_NETWORK ?? "web";
 
 const MEMORY_LIMIT = MEMORY_LIMIT_MB * 1024 * 1024; // 256 MB
@@ -25,7 +25,7 @@ export function PullImage(image: string) {
     const img = NormalizeDockerImageString(image);
     docker.pull(img, (err: Error | null, stream: NodeJS.ReadableStream) => {
       if (err) return reject(err);
-      docker.modem.followProgress(stream, (error: Error | null, result) => {
+      docker.modem.followProgress(stream, (error: Error | null) => {
         if (error) return reject(error);
         resolve();
       });
@@ -98,4 +98,71 @@ export async function StartContainers(container_name: string) {
   } catch (error) {
     IgnoreStatus(error, [304]);
   }
+}
+
+function Sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+async function ApiCall(url: string) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    return res.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+type HealthOptions = {
+  name: string;
+  port: number;
+  path?: string;
+  timeout_ms?: number;
+  interval_ms?: number;
+};
+
+type HealthResult = {
+  healthy: boolean;
+  reason: string | null;
+};
+
+export async function HealthCheckCOntainer(
+  options: HealthOptions,
+): Promise<HealthResult> {
+  const {
+    name,
+    port,
+    path = "/",
+    timeout_ms = 60000,
+    interval_ms = 1500,
+  } = options;
+
+  const startedAt = Date.now();
+  const deadline = startedAt + timeout_ms;
+  const canProbe = process.platform === "linux";
+
+  while (Date.now() < deadline) {
+    const info = await docker.getContainer(name).inspect();
+
+    if (!info.State.Running || info.State.Restarting || info.RestartCount > 0) {
+      return {
+        healthy: false,
+        reason: `Container exited with code ${info.State.ExitCode}`,
+      };
+    }
+
+    if (canProbe) {
+      const ip = info.NetworkSettings.Networks?.[NETWORK]?.IPAddress;
+      if (ip && (await ApiCall(`http://${ip}:${port}${path}`))) {
+        return { healthy: true, reason: null };
+      }
+    } else if (Date.now() - startedAt >= STABLE_MS) {
+      return { healthy: true, reason: null };
+    }
+
+    await Sleep(interval_ms);
+  }
+  return {
+    healthy: false,
+    reason: `Health check failed after ${timeout_ms / 1000}s on port ${port}`,
+  };
 }

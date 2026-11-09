@@ -11,6 +11,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import {
   GetImage,
+  HealthCheckCOntainer,
   PullImage,
   RemoveContainer,
   RunContainer,
@@ -135,7 +136,6 @@ export async function DockerBasedDeploy(
       service_data.port ?? process.env.DEFAULT_APP_PORT ?? 80,
     );
 
-    await RemoveOldContainers(service_data.id, deployment_id);
     onLog?.("system", "Starting container");
     await RunContainer({
       name: container_name,
@@ -146,6 +146,20 @@ export async function DockerBasedDeploy(
       env_vars: service_data.env_vars ?? [],
     });
 
+    const { reason, healthy } = await HealthCheckCOntainer({
+      name: container_name,
+      port: DEFAULT_PORT,
+    });
+
+    if (!healthy) {
+      onLog?.("stderr", reason ?? "Health check failed");
+      await RemoveContainer(container_name);
+      throw new Error(reason ?? "Health check failed");
+    }
+
+    onLog?.("system", "Health check passed");
+    await RemoveOldContainers(service_data.id, deployment_id);
+    onLog?.("stderr", "Updating Deployments");
     // Finish deployment
 
     await UpdateDeployment(deployment_id, {
