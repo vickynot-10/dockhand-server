@@ -203,8 +203,7 @@ export async function GithubBasedDeploy(
   deployment_id: string,
   service_data: typeof services.$inferSelect,
   onLog?: OnLog,
-
-  commit_sha_param?: string,
+  rebuild_sha?: string,
 ) {
   if (!service_data.repo_full_name) {
     throw new Error("Repository is not set");
@@ -229,7 +228,7 @@ export async function GithubBasedDeploy(
     output_directory: service_data.output_directory as string,
     build_command: service_data.build_command as string,
     env_vars: service_data.env_vars ?? [],
-    commit_sha: commit_sha_param ?? undefined,
+    commit_sha: rebuild_sha ?? undefined,
   };
 
   const { imageTag, commit_sha } = await BuildWithGithub(deploy_options, onLog);
