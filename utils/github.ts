@@ -37,11 +37,16 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
   const repoUrl = `https://${auth}github.com/${repo_name}.git`;
 
   try {
-    const lsRemote = await simpleGit().listRemote([
-      repoUrl,
-      `refs/heads/${branch}`,
-    ]);
-    const commit_sha = lsRemote.split("\t")[0]?.trim();
+    let commit_sha = options.commit_sha;
+
+    if (!commit_sha) {
+      const lsRemote = await simpleGit().listRemote([
+        repoUrl,
+        `refs/heads/${branch}`,
+      ]);
+      commit_sha = lsRemote.split("\t")[0]?.trim();
+    }
+
     if (!commit_sha) {
       throw new Error("Branch not found");
     }
@@ -136,18 +141,18 @@ async function BuildStaticImage(
 
   try {
     const context_dir = join(work_dir, options.root);
-    await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
 
+    if (context_dir !== work_dir && !context_dir.startsWith(work_dir + sep)) {
+      throw new Error("Invalid root directory");
+    }
     if (safe_output.split("/").includes("..")) {
       throw new Error("Invalid output directory");
     }
+
     onLog?.("system", "Cloning repository");
-    await simpleGit().clone(repoUrl, work_dir, [
-      "--depth",
-      "1",
-      "--branch",
-      options.branch,
-    ]);
+
+    await CloneRepo(repoUrl, work_dir, options.branch, options.commit_sha);
+    await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
 
     const entries = (await readdir(context_dir)).filter((name) => {
       return name !== ".git";
@@ -213,12 +218,7 @@ async function BuildWebServices(
     }
     onLog?.("system", "Cloning repository");
 
-    await simpleGit().clone(repoUrl, work_dir, [
-      "--depth",
-      "1",
-      "--branch",
-      options.branch,
-    ]);
+    await CloneRepo(repoUrl, work_dir, options.branch, options.commit_sha);
     await writeFile(join(context_dir, "Dockerfile.dockhand"), dockerfile);
 
     const entries = (await readdir(context_dir)).filter((name) => {
@@ -235,4 +235,26 @@ async function BuildWebServices(
   } finally {
     await rm(work_dir, { recursive: true, force: true });
   }
+}
+
+async function CloneRepo(
+  repoUrl: string,
+  work_dir: string,
+  branch: string,
+  commit_sha?: string,
+) {
+  if (!commit_sha) {
+    await simpleGit().clone(repoUrl, work_dir, [
+      "--depth",
+      "1",
+      "--branch",
+      branch,
+    ]);
+    return;
+  }
+  const git = simpleGit(work_dir);
+  await git.init();
+  await git.addRemote("origin", repoUrl);
+  await git.fetch(["--depth", "1", "origin", commit_sha]);
+  await git.checkout(["FETCH_HEAD"]);
 }

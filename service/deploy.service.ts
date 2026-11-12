@@ -130,7 +130,8 @@ export async function DockerBasedDeploy(
       onLog?.("system", `Pulling ${image}`);
       await PullImage(image);
     }
-    const image_ref = await GetImage(image);
+
+    const image_ref = skip_pull ? image : await GetImage(image);
 
     const DEFAULT_PORT = Number(
       service_data.port ?? process.env.DEFAULT_APP_PORT ?? 80,
@@ -202,6 +203,8 @@ export async function GithubBasedDeploy(
   deployment_id: string,
   service_data: typeof services.$inferSelect,
   onLog?: OnLog,
+
+  commit_sha_param?: string,
 ) {
   if (!service_data.repo_full_name) {
     throw new Error("Repository is not set");
@@ -226,6 +229,7 @@ export async function GithubBasedDeploy(
     output_directory: service_data.output_directory as string,
     build_command: service_data.build_command as string,
     env_vars: service_data.env_vars ?? [],
+    commit_sha: commit_sha_param ?? undefined,
   };
 
   const { imageTag, commit_sha } = await BuildWithGithub(deploy_options, onLog);

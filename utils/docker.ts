@@ -16,6 +16,16 @@ function NormalizeDockerImageString(image: string) {
   return `${image}:latest`;
 }
 
+export async function IsImageExists(image: string) {
+  try {
+    await docker.getImage(image).inspect();
+    return true;
+  } catch (err: any) {
+    if (err.statusCode === 404) return false;
+    throw err;
+  }
+}
+
 export async function PingDocker() {
   await docker.ping();
 }

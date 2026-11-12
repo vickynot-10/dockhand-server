@@ -28,6 +28,7 @@ export type GitHubOptions = {
   output_directory: string;
   port: number;
   env_vars?: { key: string; value: string }[];
+  commit_sha?: string | undefined;
 };
 
 export type OnLog = (stream: string, line: string) => void;
