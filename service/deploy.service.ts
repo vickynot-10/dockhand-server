@@ -20,6 +20,7 @@ import { config } from "dotenv";
 import { services } from "../schema/database/services.js";
 import { BuildWithGithub } from "../utils/github.js";
 import { emitter } from "../utils/emitter.js";
+import { BuildHostName, BuildPublicUrl } from "../utils/domain.js";
 
 config();
 
@@ -108,8 +109,6 @@ async function RemoveOldContainers(
   }
 }
 
-const BASE_DOMAIN = process.env.BASE_DOMAIN ?? "localhost";
-
 export async function DockerBasedDeploy(
   image: string,
   deployment_id: string,
@@ -120,7 +119,8 @@ export async function DockerBasedDeploy(
   if (!image) {
     throw new Error("Image is Not found");
   }
-  const host_name = `${service_data.slug}.${BASE_DOMAIN}`;
+
+  const host_name = BuildHostName(service_data.slug);
 
   const container_name = `${service_data.slug}-${deployment_id.slice(0, 8)}`;
 
@@ -160,7 +160,7 @@ export async function DockerBasedDeploy(
 
     onLog?.("system", "Health check passed");
     await RemoveOldContainers(service_data.id, deployment_id);
-    onLog?.("stderr", "Updating Deployments");
+    onLog?.("system", "Updating Deployments");
     // Finish deployment
 
     await UpdateDeployment(deployment_id, {
@@ -171,12 +171,14 @@ export async function DockerBasedDeploy(
       finished_on: new Date(),
     });
 
-    onLog?.("system", `Running at ${host_name}`);
+    const FINAL_HOST = BuildPublicUrl(host_name);
+
+    onLog?.("system", `Running at ${FINAL_HOST}`);
 
     await db
       .update(services)
       .set({
-        host: host_name,
+        host: FINAL_HOST,
         updated_on: new Date(),
       })
       .where(eq(services.id, service_data.id));

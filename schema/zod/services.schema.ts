@@ -1,17 +1,6 @@
 import { z } from "zod";
 import { DEPLOY_TYPE, GITHUB_REPO_TYPE, RUNTIMES } from "../../constants.js";
-
-const RESERVED_SLUGS = [
-  "www",
-  "api",
-  "app",
-  "admin",
-  "dashboard",
-  "traefik",
-  "mail",
-  "dockhand",
-];
-const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]{1,28})[a-z0-9]$/;
+import { IsValidSlug } from "../../utils/domain.js";
 
 const base_fields = {
   name: z
@@ -23,8 +12,13 @@ const base_fields = {
   slug: z
     .string({ error: "Subdomain is required" })
     .trim()
-    .regex(SLUG_REGEX, "3-30 chars, lowercase letters, numbers, hyphens only")
-    .refine((v) => !RESERVED_SLUGS.includes(v), "This name is reserved"),
+    .toLowerCase()
+    .min(3, "Subdomain must be at least 3 characters")
+    .max(40, "Subdomain is too long")
+    .refine(IsValidSlug, {
+      message:
+        "Use lowercase letters, numbers and hyphens only, and not a reserved name",
+    }),
 
   project_id: z
     .string({ error: "ID is required" })

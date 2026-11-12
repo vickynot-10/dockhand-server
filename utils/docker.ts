@@ -2,6 +2,7 @@ import Docker from "dockerode";
 import type { RunContainerOptions } from "../types/deploy.types.js";
 import { config } from "dotenv";
 import { MEMORY_LIMIT_MB } from "../constants.js";
+import { GetEntrypoint } from "./domain.js";
 
 config();
 const docker = new Docker();
@@ -57,7 +58,7 @@ export async function RunContainer(options: RunContainerOptions) {
       "traefik.enable": "true",
       "traefik.docker.network": NETWORK,
       [`traefik.http.routers.${options.slug}.rule`]: `Host(\`${options.hostname}\`)`,
-      [`traefik.http.routers.${options.slug}.entrypoints`]: "web",
+      [`traefik.http.routers.${options.slug}.entrypoints`]: GetEntrypoint(),
       [`traefik.http.services.${options.slug}.loadbalancer.server.port`]:
         String(options.port),
     },
