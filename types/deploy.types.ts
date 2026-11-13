@@ -7,6 +7,9 @@ export interface DeployParams {
 }
 
 export type RunContainerOptions = {
+  project_id: string;
+  service_name: string;
+
   name: string;
   image: string;
   slug: string;
@@ -32,3 +35,17 @@ export type GitHubOptions = {
 };
 
 export type OnLog = (stream: string, line: string) => void;
+
+export type HealthOptions = {
+  name: string;
+  project_id: string;
+  port: number;
+  path?: string;
+  timeout_ms?: number;
+  interval_ms?: number;
+};
+
+export type HealthResult = {
+  healthy: boolean;
+  reason: string | null;
+};

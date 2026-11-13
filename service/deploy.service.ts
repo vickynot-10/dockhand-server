@@ -122,7 +122,7 @@ export async function DockerBasedDeploy(
 
   const host_name = BuildHostName(service_data.slug);
 
-  const container_name = `${service_data.slug}-${deployment_id.slice(0, 8)}`;
+  const container_name = `${service_data.slug}-${service_data.project_id}--${deployment_id.slice(0, 8)}`;
 
   try {
     // Pull image first
@@ -134,11 +134,13 @@ export async function DockerBasedDeploy(
     const image_ref = skip_pull ? image : await GetImage(image);
 
     const DEFAULT_PORT = Number(
-      service_data.port ?? process.env.DEFAULT_APP_PORT ?? 80,
+      service_data.port ?? process.env.DEFAULT_APP_PORT ?? 3000,
     );
 
     onLog?.("system", "Starting container");
     await RunContainer({
+      service_name: service_data.name,
+      project_id: service_data.project_id,
       name: container_name,
       image: image_ref,
       slug: service_data.slug,
@@ -150,6 +152,7 @@ export async function DockerBasedDeploy(
     const { reason, healthy } = await HealthCheckCOntainer({
       name: container_name,
       port: DEFAULT_PORT,
+      project_id: service_data.project_id,
     });
 
     if (!healthy) {

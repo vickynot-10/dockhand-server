@@ -12,6 +12,7 @@ import { IsImageExists } from "../utils/docker.js";
 import { DEPLOY_TYPE, DEPLOYMENT_STATUS } from "../constants.js";
 import { CreateLogBuffer } from "../service/deploy-logs.service.js";
 import { deployments } from "../schema/database/deployments.js";
+import { projects } from "../schema/database/project.js";
 
 type DeployJobData = {
   deployment_id: string;

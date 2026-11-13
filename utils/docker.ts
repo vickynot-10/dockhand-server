@@ -1,5 +1,9 @@
 import Docker from "dockerode";
-import type { RunContainerOptions } from "../types/deploy.types.js";
+import type {
+  HealthOptions,
+  HealthResult,
+  RunContainerOptions,
+} from "../types/deploy.types.js";
 import { config } from "dotenv";
 import { MEMORY_LIMIT_MB } from "../constants.js";
 import { GetEntrypoint } from "./domain.js";
@@ -7,7 +11,6 @@ import { GetEntrypoint } from "./domain.js";
 config();
 const docker = new Docker();
 const STABLE_MS = 8000;
-const NETWORK = process.env.DEPLOY_NETWORK ?? "web";
 
 const MEMORY_LIMIT = MEMORY_LIMIT_MB * 1024 * 1024; // 256 MB
 // docker.io/library/nginx:latest -> nginx:latest else nginx:latest
@@ -15,6 +18,49 @@ function NormalizeDockerImageString(image: string) {
   const img_str = image.split("/").pop() ?? image;
   if (img_str.includes(":") || img_str.includes("@")) return image;
   return `${image}:latest`;
+}
+
+function CreateNetworkName(project_id: string): string {
+  return `project_${project_id}_network`;
+}
+
+const TRAEFIK_CONTAINER = process.env.TRAEFIK_CONTAINER ?? "traefik-traefik-1";
+async function ConnectToNetwork(network: string) {
+  try {
+    await docker.getNetwork(network).connect({ Container: TRAEFIK_CONTAINER });
+  } catch (e: any) {
+    if (e.statusCode === 403) return;
+    if (e.statusCode === 404) {
+      throw new Error(`Traefik container "${TRAEFIK_CONTAINER}" not found`);
+    }
+    throw e;
+  }
+}
+
+export async function ReconnectTraefik() {
+  const networks = await docker.listNetworks({
+    filters: { label: ["dockhand.projects"] },
+  });
+  for (const n of networks) {
+    await ConnectToNetwork(n.Name);
+  }
+}
+
+async function CreateNetwork(project_id: string) {
+  const NETWORK_NAME = CreateNetworkName(project_id);
+  try {
+    await docker.createNetwork({
+      Name: NETWORK_NAME,
+      Driver: "bridge",
+      CheckDuplicate: true,
+      Labels: { "dockhand.projects": project_id },
+    });
+  } catch (e: any) {
+    // if any error other than duplicate then we throw error
+    if (e.statusCode !== 409) throw e;
+  }
+
+  return NETWORK_NAME;
 }
 
 export async function IsImageExists(image: string) {
@@ -51,34 +97,57 @@ export async function GetImage(image: string): Promise<string> {
 }
 
 export async function RunContainer(options: RunContainerOptions) {
-  const container = await docker.createContainer({
-    name: options.name,
-    Image: options.image,
-    Labels: {
-      "traefik.enable": "true",
-      "traefik.docker.network": NETWORK,
-      [`traefik.http.routers.${options.slug}.rule`]: `Host(\`${options.hostname}\`)`,
-      [`traefik.http.routers.${options.slug}.entrypoints`]: GetEntrypoint(),
-      [`traefik.http.services.${options.slug}.loadbalancer.server.port`]:
-        String(options.port),
-    },
-    Env: [
-      `PORT=${options.port}`,
-      ...(options.env_vars ?? []).map((item) => {
-        return `${item.key}=${item.value}`;
-      }),
-    ],
-    HostConfig: {
-      NetworkMode: NETWORK,
-      RestartPolicy: { Name: "unless-stopped" },
-      Memory: MEMORY_LIMIT,
-      MemorySwap: MEMORY_LIMIT,
-    },
-  });
+  try {
+    const {
+      project_id,
+      service_name,
+      name,
+      image,
+      slug,
+      hostname,
+      port,
+      env_vars,
+    } = options;
+    const NETWORK = await CreateNetwork(project_id);
 
-  await container.start();
+    const container = await docker.createContainer({
+      name,
+      Image: image,
+      Labels: {
+        "traefik.enable": "true",
+        "traefik.docker.network": NETWORK,
+        [`traefik.http.routers.${slug}.rule`]: `Host(\`${hostname}\`)`,
+        [`traefik.http.routers.${slug}.entrypoints`]: GetEntrypoint(),
+        [`traefik.http.services.${options.slug}.loadbalancer.server.port`]:
+          String(port),
+      },
+      Env: [
+        `PORT=${port}`,
+        ...(env_vars ?? []).map((item) => {
+          return `${item.key}=${item.value}`;
+        }),
+      ],
+      HostConfig: {
+        NetworkMode: NETWORK,
+        RestartPolicy: { Name: "unless-stopped" },
+        Memory: MEMORY_LIMIT,
+        MemorySwap: MEMORY_LIMIT,
+      },
+      NetworkingConfig: {
+        EndpointsConfig: {
+          [NETWORK]: { Aliases: [service_name] },
+        },
+      },
+    });
 
-  return container.id;
+    await ConnectToNetwork(NETWORK);
+
+    await container.start();
+
+    return container.id;
+  } catch (e) {
+    throw e;
+  }
 }
 
 export async function RemoveContainer(name: string) {
@@ -123,19 +192,6 @@ async function ApiCall(url: string) {
   }
 }
 
-type HealthOptions = {
-  name: string;
-  port: number;
-  path?: string;
-  timeout_ms?: number;
-  interval_ms?: number;
-};
-
-type HealthResult = {
-  healthy: boolean;
-  reason: string | null;
-};
-
 export async function HealthCheckCOntainer(
   options: HealthOptions,
 ): Promise<HealthResult> {
@@ -145,7 +201,10 @@ export async function HealthCheckCOntainer(
     path = "/",
     timeout_ms = 60000,
     interval_ms = 1500,
+    project_id,
   } = options;
+
+  const NETWORK = CreateNetworkName(project_id);
 
   const startedAt = Date.now();
   const deadline = startedAt + timeout_ms;

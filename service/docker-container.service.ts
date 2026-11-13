@@ -4,6 +4,7 @@ import { db } from "../config/db.js";
 import { deployments } from "../schema/database/deployments.js";
 import { DEPLOYMENT_STATUS } from "../constants.js";
 import { emitter } from "../utils/emitter.js";
+import { ReconnectTraefik } from "../utils/docker.js";
 
 const docker = new Docker();
 
@@ -87,6 +88,8 @@ export async function WatchContainerEvents() {
   const stream = await docker.getEvents({
     filters: { type: ["container"], event: ["start", "die"] },
   });
+
+  await ReconnectTraefik();
 
   let buffer = "";
   let retry_scheduled = false;
