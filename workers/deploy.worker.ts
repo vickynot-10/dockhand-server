@@ -1,4 +1,4 @@
-import { Worker, Job } from "bullmq";
+import { Worker } from "bullmq";
 import { ProcessDeployments } from "./deploy-process.worker.js";
 import {
   ConnectRedis,
@@ -7,15 +7,11 @@ import {
 } from "../config/redis.js";
 import { DEPLOYMENT_QUEUE_KEY } from "../queue/deploy.queue.js";
 import { PingDocker } from "../utils/docker.js";
-import {
-  ReconcileStatuses,
-  WatchContainerEvents,
-} from "../service/docker-container.service.js";
+import { WatchContainerEvents } from "../service/docker-container.service.js";
 
 async function StartDeployWorker() {
   await ConnectRedis();
   await PingDocker();
-  await ReconcileStatuses();
   await WatchContainerEvents();
 
   const worker = new Worker(DEPLOYMENT_QUEUE_KEY, ProcessDeployments, {
@@ -27,8 +23,8 @@ async function StartDeployWorker() {
     console.log(`From worker ${job.id} completed`);
   });
 
-  worker.on("failed", (job) => {
-    console.error(`From worker error ${job?.id}`);
+  worker.on("failed", (job, err) => {
+    console.error(`From worker error ${job?.id}`, err.message);
   });
 
   async function shutdown() {
@@ -41,6 +37,6 @@ async function StartDeployWorker() {
 }
 
 StartDeployWorker().catch((e) => {
-  console.log(e, "from deploy worker");
-  process.exit(0);
+  console.error(e, "from deploy worker");
+  process.exit(1);
 });

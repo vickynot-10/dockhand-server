@@ -99,14 +99,24 @@ async function RemoveOldContainers(
         ne(deployments.id, currentDeploymentID),
       ),
     );
-  if (!previous_deployments || previous_deployments.length <= 0) return;
   for (const item of previous_deployments) {
-    if (!item) continue;
-    if (item.container_name) {
-      await RemoveContainer(item.container_name);
-    }
     await UpdateDeployment(item.id, { status: DEPLOYMENT_STATUS.SUPERSEDED });
+    if (!item.container_name) continue;
+    try {
+      await RemoveContainer(item.container_name);
+    } catch (e) {
+      console.error("Failed to remove old container", item.container_name, e);
+    }
   }
+}
+
+export function DeployErrorMessage(e: unknown) {
+  const err = e as { code?: string; syscall?: string; message?: string };
+  const is_socket_error =
+    (err?.code === "ECONNREFUSED" || err?.code === "ENOENT") &&
+    err?.syscall === "connect";
+  if (is_socket_error) return "Docker daemon is not reachable";
+  return err?.message ?? "Deployment failed";
 }
 
 export async function DockerBasedDeploy(
@@ -194,14 +204,6 @@ export async function DockerBasedDeploy(
     });
     throw e;
   }
-}
-
-export function DeployErrorMessage(e: unknown) {
-  const err = e as { code?: string; message?: string };
-  if (err?.code === "ECONNREFUSED" || err?.code === "ENOENT") {
-    return "Docker daemon is not reachable";
-  }
-  return err?.message ?? "Deployment failed";
 }
 
 export async function GithubBasedDeploy(

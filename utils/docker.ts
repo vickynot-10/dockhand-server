@@ -12,8 +12,8 @@ config();
 const docker = new Docker();
 const STABLE_MS = 8000;
 
-const MEMORY_LIMIT = MEMORY_LIMIT_MB * 1024 * 1024; // 256 MB
-// docker.io/library/nginx:latest -> nginx:latest else nginx:latest
+const MEMORY_LIMIT = MEMORY_LIMIT_MB * 1024 * 1024;
+
 function NormalizeDockerImageString(image: string) {
   const img_str = image.split("/").pop() ?? image;
   if (img_str.includes(":") || img_str.includes("@")) return image;
@@ -24,7 +24,9 @@ function CreateNetworkName(project_id: string): string {
   return `project_${project_id}_network`;
 }
 
-const TRAEFIK_CONTAINER = process.env.TRAEFIK_CONTAINER ?? "traefik-traefik-1";
+export const TRAEFIK_CONTAINER =
+  process.env.TRAEFIK_CONTAINER ?? "traefik-traefik-1";
+
 async function ConnectToNetwork(network: string) {
   try {
     await docker.getNetwork(network).connect({ Container: TRAEFIK_CONTAINER });
@@ -41,8 +43,13 @@ export async function ReconnectTraefik() {
   const networks = await docker.listNetworks({
     filters: { label: ["dockhand.projects"] },
   });
-  for (const n of networks) {
-    await ConnectToNetwork(n.Name);
+  const results = await Promise.allSettled(
+    networks.map((n) => ConnectToNetwork(n.Name)),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Traefik reconnect failed", result.reason);
+    }
   }
 }
 
@@ -56,7 +63,6 @@ async function CreateNetwork(project_id: string) {
       Labels: { "dockhand.projects": project_id },
     });
   } catch (e: any) {
-    // if any error other than duplicate then we throw error
     if (e.statusCode !== 409) throw e;
   }
 
@@ -97,57 +103,52 @@ export async function GetImage(image: string): Promise<string> {
 }
 
 export async function RunContainer(options: RunContainerOptions) {
-  try {
-    const {
-      project_id,
-      service_name,
-      name,
-      image,
-      slug,
-      hostname,
-      port,
-      env_vars,
-    } = options;
-    const NETWORK = await CreateNetwork(project_id);
+  const {
+    project_id,
+    service_name,
+    name,
+    image,
+    slug,
+    hostname,
+    port,
+    env_vars,
+  } = options;
+  const NETWORK = await CreateNetwork(project_id);
 
-    const container = await docker.createContainer({
-      name,
-      Image: image,
-      Labels: {
-        "traefik.enable": "true",
-        "traefik.docker.network": NETWORK,
-        [`traefik.http.routers.${slug}.rule`]: `Host(\`${hostname}\`)`,
-        [`traefik.http.routers.${slug}.entrypoints`]: GetEntrypoint(),
-        [`traefik.http.services.${options.slug}.loadbalancer.server.port`]:
-          String(port),
+  const container = await docker.createContainer({
+    name,
+    Image: image,
+    Labels: {
+      "traefik.enable": "true",
+      "traefik.docker.network": NETWORK,
+      [`traefik.http.routers.${slug}.rule`]: `Host(\`${hostname}\`)`,
+      [`traefik.http.routers.${slug}.entrypoints`]: GetEntrypoint(),
+      [`traefik.http.services.${slug}.loadbalancer.server.port`]: String(port),
+    },
+    Env: [
+      ...(env_vars ?? []).map((item) => `${item.key}=${item.value}`),
+      `PORT=${port}`,
+    ],
+    HostConfig: {
+      NetworkMode: NETWORK,
+      RestartPolicy: { Name: "unless-stopped" },
+      Memory: MEMORY_LIMIT,
+      MemorySwap: MEMORY_LIMIT,
+      PidsLimit: 512,
+      SecurityOpt: ["no-new-privileges"],
+    },
+    NetworkingConfig: {
+      EndpointsConfig: {
+        [NETWORK]: { Aliases: [service_name] },
       },
-      Env: [
-        `PORT=${port}`,
-        ...(env_vars ?? []).map((item) => {
-          return `${item.key}=${item.value}`;
-        }),
-      ],
-      HostConfig: {
-        NetworkMode: NETWORK,
-        RestartPolicy: { Name: "unless-stopped" },
-        Memory: MEMORY_LIMIT,
-        MemorySwap: MEMORY_LIMIT,
-      },
-      NetworkingConfig: {
-        EndpointsConfig: {
-          [NETWORK]: { Aliases: [service_name] },
-        },
-      },
-    });
+    },
+  });
 
-    await ConnectToNetwork(NETWORK);
+  await ConnectToNetwork(NETWORK);
 
-    await container.start();
+  await container.start();
 
-    return container.id;
-  } catch (e) {
-    throw e;
-  }
+  return container.id;
 }
 
 export async function RemoveContainer(name: string) {
@@ -183,6 +184,7 @@ export async function StartContainers(container_name: string) {
 function Sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
+
 async function ApiCall(url: string) {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });

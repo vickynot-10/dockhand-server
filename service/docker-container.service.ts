@@ -4,7 +4,7 @@ import { db } from "../config/db.js";
 import { deployments } from "../schema/database/deployments.js";
 import { DEPLOYMENT_STATUS } from "../constants.js";
 import { emitter } from "../utils/emitter.js";
-import { ReconnectTraefik } from "../utils/docker.js";
+import { ReconnectTraefik, TRAEFIK_CONTAINER } from "../utils/docker.js";
 
 const docker = new Docker();
 
@@ -12,6 +12,16 @@ type DockerEvent = {
   Action?: string;
   Actor?: { Attributes?: { name?: string } };
 };
+
+type EventStream = NodeJS.ReadableStream & { destroy?: () => void };
+
+let event_chain: Promise<void> = Promise.resolve();
+
+function QueueEvent(event: DockerEvent) {
+  event_chain = event_chain
+    .then(() => HandleEvent(event))
+    .catch(function () {});
+}
 
 async function SetStatus(container_name: string, from: number, to: number) {
   const rows = await db
@@ -36,6 +46,11 @@ async function SetStatus(container_name: string, from: number, to: number) {
 async function HandleEvent(event: DockerEvent) {
   const container_name = event.Actor?.Attributes?.name;
   if (!container_name) return;
+
+  if (container_name === TRAEFIK_CONTAINER) {
+    if (event.Action === "start") await ReconnectTraefik();
+    return;
+  }
 
   if (event.Action === "die") {
     await SetStatus(
@@ -85,11 +100,17 @@ export async function ReconcileStatuses() {
 }
 
 export async function WatchContainerEvents() {
-  const stream = await docker.getEvents({
+  const stream = (await docker.getEvents({
     filters: { type: ["container"], event: ["start", "die"] },
-  });
+  })) as EventStream;
 
-  await ReconnectTraefik();
+  try {
+    await ReconnectTraefik();
+    await ReconcileStatuses();
+  } catch (e) {
+    stream.destroy?.();
+    throw e;
+  }
 
   let buffer = "";
   let retry_scheduled = false;
@@ -97,7 +118,8 @@ export async function WatchContainerEvents() {
   function Retry() {
     if (retry_scheduled) return;
     retry_scheduled = true;
-    setTimeout(() => {
+    stream.destroy?.();
+    setTimeout(function () {
       retry_scheduled = false;
       WatchContainerEvents().catch(Retry);
     }, 2000);
@@ -110,7 +132,7 @@ export async function WatchContainerEvents() {
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
-        HandleEvent(JSON.parse(line)).catch(function () {});
+        QueueEvent(JSON.parse(line));
       } catch {
         continue;
       }

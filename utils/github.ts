@@ -53,13 +53,14 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
     onLog?.("system", `Building ${repo_name}@${commit_sha.slice(0, 7)}`);
 
     const imageTag = `${slug}:${commit_sha.slice(0, 12)}`;
+    const build_options: GitHubOptions = { ...options, commit_sha };
 
-    if (options.type === "static") {
-      await BuildStaticImage(repoUrl, options, imageTag, token, onLog);
+    if (build_options.type === "static") {
+      await BuildStaticImage(repoUrl, build_options, imageTag, token, onLog);
       return { imageTag, commit_sha };
     }
 
-    await BuildWebServices(repoUrl, options, imageTag, token, onLog);
+    await BuildWebServices(repoUrl, build_options, imageTag, token, onLog);
     return { imageTag, commit_sha };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -176,7 +177,7 @@ const RUNTIME_IMAGES: Record<number, string> = {
   [RUNTIMES.PYTHON]: "python:3.12-slim",
   [RUNTIMES.JAVA]: "maven:3-eclipse-temurin-21",
   [RUNTIMES.RUBY]: "ruby:3.3-slim",
-  [RUNTIMES.ELXIR]: "elixir:1.17-alpine",
+  [RUNTIMES.ELIXIR]: "elixir:1.17-alpine",
   [RUNTIMES.RUST]: "rust:1-slim",
 };
 
