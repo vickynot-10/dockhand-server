@@ -11,5 +11,5 @@ ENV NODE_ENV=production
 RUN apk add --no-cache git
 COPY package*.json ./
 RUN npm install --omit=dev
-COPY --from=build /app/dist .dist
-CMD ["node" , "dist/app.js"]
+COPY --from=build /app/dist ./dist
+CMD ["node", "dist/app.js"]
