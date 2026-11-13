@@ -129,7 +129,7 @@ function checkGithubFields(
   }
 
   if (data.type === "web") {
-    if (!Object.values(RUNTIMES).includes(data.runtime)) {
+    if (!Object.values(RUNTIMES).some((runtime) => runtime === data.runtime)) {
       ctx.addIssue({
         code: "custom",
         message: "Runtime is required",
