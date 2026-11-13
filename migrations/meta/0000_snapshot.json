@@ -1,5 +1,5 @@
 {
-  "id": "364b8f83-6778-49c9-8634-b55c53806778",
+  "id": "9bdf1352-fc04-4813-bf4c-1c4004a60749",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -216,6 +216,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "use_dockerfile": {
+          "name": "use_dockerfile",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "repo_id": {
           "name": "repo_id",

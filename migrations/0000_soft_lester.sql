@@ -32,6 +32,7 @@ CREATE TABLE "services" (
 	"host" text,
 	"deploy_type" integer NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
+	"use_dockerfile" boolean DEFAULT false NOT NULL,
 	"repo_id" integer,
 	"repo_type" integer,
 	"repo_full_name" text,

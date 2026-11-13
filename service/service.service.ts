@@ -27,6 +27,8 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           env_vars: data.env_vars,
           runtime: data.runtime,
           start_command: data.start_command,
+
+          use_dockerfile: data.use_dockerfile,
           image_url: null,
         }
       : {
@@ -44,7 +46,6 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           build_command: null,
           output_directory: null,
           env_vars: null,
-
           image_url: data.image_url,
         };
 
@@ -70,6 +71,7 @@ export async function UpdateService(data: EditServiceInput) {
           output_directory: data.output_directory,
           env_vars: data.env_vars,
           image_url: null,
+          use_dockerfile: data.use_dockerfile,
           runtime: data.runtime,
           start_command: data.start_command,
           updated_on: new Date(),
