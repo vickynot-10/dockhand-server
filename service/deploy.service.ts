@@ -232,6 +232,7 @@ export async function GithubBasedDeploy(
     type: service_data.type,
     slug: service_data.slug,
     port: service_data.port,
+    use_dockerfile: service_data.use_dockerfile ?? false,
     output_directory: service_data.output_directory as string,
     build_command: service_data.build_command as string,
     env_vars: service_data.env_vars ?? [],

@@ -34,6 +34,7 @@ export const services = pgTable("services", {
   enabled: boolean("enabled").notNull().default(true),
 
   // GitHub deployment
+  use_dockerfile: boolean("use_dockerfile").notNull().default(false),
   repo_id: integer("repo_id"),
   repo_type: integer("repo_type"),
   repo_full_name: text("repo_full_name"),

@@ -63,7 +63,8 @@ const github_fields = {
     .trim()
     .min(1, "Root directory is required")
     .refine((v) => !v.split("/").includes(".."), "Invalid root directory"),
-  build_command: z.string().trim().min(1, "Build command is required"),
+  use_dockerfile: z.boolean().default(false),
+  build_command: z.string().trim().default(""),
   runtime: z.coerce.number().int().default(RUNTIMES.NODE),
   start_command: z.string().trim().default(""),
   output_directory: z.string().trim().default(""),
@@ -101,6 +102,8 @@ function checkGithubFields(
     type: string;
     repo_type: number;
     repo_id: number | null;
+    use_dockerfile: boolean;
+    build_command: string;
     runtime: number;
     start_command: string;
     output_directory: string;
@@ -112,6 +115,16 @@ function checkGithubFields(
       code: "custom",
       message: "Repository is required",
       path: ["repo_id"],
+    });
+  }
+
+  if (data.use_dockerfile) return;
+
+  if (!data.build_command) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Build command is required",
+      path: ["build_command"],
     });
   }
 

@@ -66,6 +66,7 @@ export async function BuildWithGithub(options: GitHubOptions, onLog?: OnLog) {
     throw new Error(HideToken(message, token));
   }
 }
+const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
 
 function ContinuteBuildStream(
   stream: NodeJS.ReadableStream,
@@ -80,9 +81,15 @@ function ContinuteBuildStream(
   }
 
   return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(function () {
+      (stream as { destroy?: () => void }).destroy?.();
+      reject(new Error("Build timed out after 15 minutes"));
+    }, BUILD_TIMEOUT_MS);
+
     docker.modem.followProgress(
       stream,
       (err: Error | null, result) => {
+        clearTimeout(timer);
         if (err) return reject(err);
         const isFailed = result.find((val) => val.error);
         if (isFailed) return reject(new Error(isFailed.error));
@@ -195,10 +202,13 @@ async function BuildFromRepo(
 
     let dockerfile_name = REPO_DOCKERFILE;
 
-    if (await HasRepoDockerfile(context_dir)) {
-      onLog?.("system", "Dockerfile found, using it");
+    if (options.use_dockerfile) {
+      if (!(await HasRepoDockerfile(context_dir))) {
+        throw new Error("Dockerfile not found in the root directory");
+      }
+      onLog?.("system", "Using repository Dockerfile");
     } else {
-      onLog?.("system", "No Dockerfile found, generating one");
+      onLog?.("system", "Generating Dockerfile");
       const dockerfile =
         options.type === "static"
           ? StaticDockerfile(options, env_vars)

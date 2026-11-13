@@ -29,6 +29,7 @@ export type GitHubOptions = {
   runtime: number;
   start_command: string | null;
   output_directory: string;
+  use_dockerfile: boolean;
   port: number;
   env_vars?: { key: string; value: string }[];
   commit_sha?: string | undefined;
