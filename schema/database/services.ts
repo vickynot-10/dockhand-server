@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  bigint,
   jsonb,
   boolean,
 } from "drizzle-orm/pg-core";
@@ -33,12 +34,14 @@ export const services = pgTable("services", {
 
   enabled: boolean("enabled").notNull().default(true),
 
-  // GitHub deployment
   use_dockerfile: boolean("use_dockerfile").notNull().default(false),
   repo_id: integer("repo_id"),
   repo_type: integer("repo_type"),
   repo_full_name: text("repo_full_name"),
   branch: text("branch"),
+  auto_deploy: boolean("auto_deploy").default(true),
+  webhook_id: bigint("webhook_id", { mode: "number" }),
+  webhook_secret: text("webhook_secret"),
   root_directory: text("root_directory"),
   build_command: text("build_command"),
 
@@ -49,7 +52,6 @@ export const services = pgTable("services", {
 
   env_vars: jsonb("env_vars").$type<{ key: string; value: string }[]>(),
 
-  // Docker deployment
   image_url: text("image_url"),
 
   created_on: timestamp("created_on").defaultNow().notNull(),

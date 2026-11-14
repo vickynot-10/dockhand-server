@@ -69,6 +69,8 @@ const github_fields = {
   start_command: z.string().trim().default(""),
   output_directory: z.string().trim().default(""),
 
+  auto_deploy: z.boolean().default(true),
+
   env_vars: z.array(env_var_schema).superRefine(function (vars, ctx) {
     const seen = new Set<string>();
     vars.forEach(function (v, index) {

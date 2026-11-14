@@ -4,7 +4,7 @@ import type {
   EditServiceInput,
   SaveServiceInput,
 } from "../schema/zod/services.schema.js";
-import { DEPLOY_TYPE } from "../constants.js";
+import { DEPLOY_TYPE, GITHUB_REPO_TYPE } from "../constants.js";
 import { eq } from "drizzle-orm";
 
 export async function CreateService(userId: string, data: SaveServiceInput) {
@@ -19,6 +19,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           deploy_type: data.deploy_type,
           port: Number(data.port),
           repo_id: data.repo_id,
+          repo_type: data.repo_type,
           repo_full_name: data.repo_full_name,
           branch: data.branch,
           root_directory: data.root_directory,
@@ -27,7 +28,10 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           env_vars: data.env_vars,
           runtime: data.runtime,
           start_command: data.start_command,
-
+          auto_deploy:
+            Number(data.repo_type) === GITHUB_REPO_TYPE.PUBLIC
+              ? false
+              : data.auto_deploy,
           use_dockerfile: data.use_dockerfile,
           image_url: null,
         }
@@ -46,6 +50,7 @@ export async function CreateService(userId: string, data: SaveServiceInput) {
           build_command: null,
           output_directory: null,
           env_vars: null,
+          auto_deploy: false,
           image_url: data.image_url,
         };
 
@@ -64,6 +69,7 @@ export async function UpdateService(data: EditServiceInput) {
           deploy_type: data.deploy_type,
           port: Number(data.port),
           repo_id: data.repo_id,
+          repo_type: data.repo_type,
           repo_full_name: data.repo_full_name,
           branch: data.branch,
           root_directory: data.root_directory,
@@ -74,6 +80,11 @@ export async function UpdateService(data: EditServiceInput) {
           use_dockerfile: data.use_dockerfile,
           runtime: data.runtime,
           start_command: data.start_command,
+
+          auto_deploy:
+            Number(data.repo_type) === GITHUB_REPO_TYPE.PUBLIC
+              ? false
+              : data.auto_deploy,
           updated_on: new Date(),
         }
       : {
@@ -89,6 +100,7 @@ export async function UpdateService(data: EditServiceInput) {
           build_command: null,
           output_directory: null,
           env_vars: null,
+          auto_deploy: false,
           image_url: data.image_url,
           updated_on: new Date(),
         };

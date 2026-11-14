@@ -21,6 +21,11 @@ import { DeployService } from "../service/deploy.service.js";
 import { deployments } from "../schema/database/deployments.js";
 import { DEPLOY_TRIGGER, DEPLOYMENT_STATUS } from "../constants.js";
 import { EnqueueDeploymentActions } from "../queue/container-actions.queue.js";
+import {
+  registerServiceWebhook,
+  removeServiceWebhooks,
+  syncServiceWebhook,
+} from "../webhooks/github.webhook.js";
 
 function isUniqueViolation(error: unknown) {
   const e = error as { code?: string; cause?: { code?: string } };
@@ -75,7 +80,13 @@ export async function GetServiceByIDForEdit(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload !");
   }
 
-  const [rows] = await db.select().from(services).where(eq(services.id, id));
+  const { webhook_secret, webhook_id, ...editColumns } =
+    getTableColumns(services);
+
+  const [rows] = await db
+    .select(editColumns)
+    .from(services)
+    .where(eq(services.id, id));
 
   if (!rows) return send_error(res, 404, "Service not found!");
   return send_success(res, 200, rows);
@@ -96,12 +107,12 @@ export async function SaveServices(req: Request, res: Response) {
 
   const data = parsed.data;
 
-  const isSlugExists = await db
+  const [isSlugExists] = await db
     .select({ slug: services.slug })
     .from(services)
     .where(eq(services.slug, data.slug));
 
-  if (isSlugExists.length > 0) {
+  if (isSlugExists) {
     return send_error(
       res,
       409,
@@ -128,6 +139,13 @@ export async function SaveServices(req: Request, res: Response) {
     return send_error(res, 400, "Failed to Insert !");
   }
 
+  let webhookFailed = false;
+
+  if (service.auto_deploy) {
+    const registered = await registerServiceWebhook(userId, service);
+    webhookFailed = !registered;
+  }
+
   try {
     await DeployService({
       user_id: userId,
@@ -136,7 +154,14 @@ export async function SaveServices(req: Request, res: Response) {
       deploy_type: service.deploy_type,
       trigger_type: DEPLOY_TRIGGER.AUTO,
     });
-    return send_success(res, 201, null, "Deploy Added to Queue !");
+    return send_success(
+      res,
+      201,
+      null,
+      webhookFailed
+        ? "Deploy Added to Queue, but auto deploy could not be enabled"
+        : "Deploy Added to Queue !",
+    );
   } catch {
     return send_error(
       res,
@@ -160,6 +185,15 @@ export async function EditServices(req: Request, res: Response) {
   }
 
   const data = parsed.data;
+
+  const [prev] = await db
+    .select()
+    .from(services)
+    .where(and(eq(services.id, data.service_id), eq(services.user_id, userId)));
+
+  if (!prev) {
+    return send_error(res, 404, "Service not found !");
+  }
 
   const isSlugExists = await db
     .select({ slug: services.slug })
@@ -193,6 +227,8 @@ export async function EditServices(req: Request, res: Response) {
     return send_error(res, 404, "Service not found !");
   }
 
+  const webhookOk = await syncServiceWebhook(userId, prev, service);
+
   try {
     await DeployService({
       user_id: userId,
@@ -201,7 +237,14 @@ export async function EditServices(req: Request, res: Response) {
       deploy_type: service.deploy_type,
       trigger_type: DEPLOY_TRIGGER.AUTO,
     });
-    return send_success(res, 201, null, "Deploy Added to Queue !");
+    return send_success(
+      res,
+      201,
+      null,
+      webhookOk
+        ? "Deploy Added to Queue !"
+        : "Deploy Added to Queue, but auto deploy could not be enabled",
+    );
   } catch {
     return send_error(
       res,
@@ -321,10 +364,21 @@ export async function ServicesActions(req: Request, res: Response) {
   );
 
   if (action === "delete") {
+    const hooks = await db
+      .select({
+        repo_full_name: services.repo_full_name,
+        webhook_id: services.webhook_id,
+      })
+      .from(services)
+      .where(and(owned, isNotNull(services.webhook_id)));
+
     const deleted = await db.delete(services).where(owned).returning();
     if (deleted.length === 0) {
       return send_error(res, 400, "No Services have been Deleted !");
     }
+
+    await removeServiceWebhooks(userId, hooks);
+
     return send_success(
       res,
       200,

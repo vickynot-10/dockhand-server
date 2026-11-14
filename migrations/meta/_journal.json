@@ -8,6 +8,13 @@
       "when": 1794556772317,
       "tag": "0000_soft_lester",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794636961700,
+      "tag": "0001_foamy_shriek",
+      "breakpoints": true
     }
   ]
 }
