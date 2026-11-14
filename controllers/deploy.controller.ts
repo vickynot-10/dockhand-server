@@ -38,6 +38,10 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
     repo_id,
     created_on,
     updated_on,
+    webhook_id,
+    webhook_secret,
+    use_dockerfile,
+    auto_deploy,
     ...serviceColumns
   } = getTableColumns(services);
 
@@ -45,6 +49,7 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
     user_id: deployUser,
     project_id,
     service_id,
+
     ...deploymentCOls
   } = getTableColumns(deployments);
 

@@ -10,6 +10,7 @@ import { ensureDatabase } from "./config/ensure-db.js";
 import { db } from "./config/db.js";
 import { ConnectRedis, DisconnectRedis } from "./config/redis.js";
 import { InitSocket } from "./socket/socket.js";
+import { GithubWebhook } from "./webhooks/github.webhook.js";
 dotenv.config();
 
 const app = express();
@@ -24,6 +25,13 @@ app.use(
     credentials: true,
   }),
 );
+
+app.post(
+  "/webhooks/github/:service_id",
+  express.raw({ type: "application/json" }),
+  GithubWebhook,
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

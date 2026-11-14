@@ -15,6 +15,13 @@
       "when": 1794636961700,
       "tag": "0001_foamy_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794638241609,
+      "tag": "0002_perfect_dark_beast",
+      "breakpoints": true
     }
   ]
 }

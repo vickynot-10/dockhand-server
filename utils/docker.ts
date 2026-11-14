@@ -24,8 +24,7 @@ function CreateNetworkName(project_id: string): string {
   return `project_${project_id}_network`;
 }
 
-export const TRAEFIK_CONTAINER =
-  process.env.TRAEFIK_CONTAINER ?? "traefik-traefik-1";
+export const TRAEFIK_CONTAINER = process.env.TRAEFIK_CONTAINER ?? "traefik";
 
 async function ConnectToNetwork(network: string) {
   try {
