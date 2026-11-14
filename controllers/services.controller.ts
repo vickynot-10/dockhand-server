@@ -39,6 +39,8 @@ export async function GetServiceByID(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload !");
   }
 
+  const reqUserID = req.user!.id;
+
   const {
     user_id,
     env_vars,
@@ -67,7 +69,7 @@ export async function GetServiceByID(req: Request, res: Response) {
     })
     .from(services)
     .leftJoin(deployments, eq(deployments.service_id, services.id))
-    .where(eq(services.id, id))
+    .where(and(eq(services.id, id), eq(services.user_id, reqUserID)))
     .groupBy(services.id);
   if (!rows) return send_error(res, 404, "Service not found!");
   return send_success(res, 200, rows);
@@ -80,13 +82,14 @@ export async function GetServiceByIDForEdit(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload !");
   }
 
+  const userid = req.user!.id;
   const { webhook_secret, webhook_id, ...editColumns } =
     getTableColumns(services);
 
   const [rows] = await db
     .select(editColumns)
     .from(services)
-    .where(eq(services.id, id));
+    .where(and(eq(services.id, id), eq(services.user_id, userid)));
 
   if (!rows) return send_error(res, 404, "Service not found!");
   return send_success(res, 200, rows);
@@ -110,7 +113,7 @@ export async function SaveServices(req: Request, res: Response) {
   const [isSlugExists] = await db
     .select({ slug: services.slug })
     .from(services)
-    .where(eq(services.slug, data.slug));
+    .where(and(eq(services.slug, data.slug), eq(services.user_id, userId)));
 
   if (isSlugExists) {
     return send_error(
@@ -198,7 +201,13 @@ export async function EditServices(req: Request, res: Response) {
   const isSlugExists = await db
     .select({ slug: services.slug })
     .from(services)
-    .where(and(eq(services.slug, data.slug), ne(services.id, data.service_id)));
+    .where(
+      and(
+        eq(services.slug, data.slug),
+        ne(services.id, data.service_id),
+        eq(services.user_id, userId),
+      ),
+    );
 
   if (isSlugExists.length > 0) {
     return send_error(
@@ -266,7 +275,7 @@ export async function DeployServices(req: Request, res: Response) {
   const [service] = await db
     .select()
     .from(services)
-    .where(eq(services.id, service_id));
+    .where(and(eq(services.id, service_id), eq(services.user_id, userId)));
 
   if (!service) {
     return send_error(res, 400, "Service Not Found !");
@@ -281,6 +290,7 @@ export async function DeployServices(req: Request, res: Response) {
     .where(
       and(
         eq(deployments.service_id, service.id),
+        eq(services.user_id, userId),
         inArray(deployments.status, [
           DEPLOYMENT_STATUS.QUEUED,
           DEPLOYMENT_STATUS.BUILDING,
@@ -402,6 +412,7 @@ export async function ServicesActions(req: Request, res: Response) {
 }
 
 export async function GetServicesList(req: Request, res: Response) {
+  const user_id = req.user!.id;
   const rows = await db
     .select({
       name: services.name,
@@ -410,6 +421,7 @@ export async function GetServicesList(req: Request, res: Response) {
       type: services.type,
     })
     .from(services)
+    .where(eq(services.user_id, user_id))
     .orderBy(services.updated_on);
   return send_success(res, 200, rows);
 }

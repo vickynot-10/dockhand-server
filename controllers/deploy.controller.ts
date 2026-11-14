@@ -28,6 +28,8 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload!");
   }
 
+  const reqUserID = req.user!.id;
+
   const {
     user_id,
     env_vars,
@@ -75,7 +77,7 @@ export async function GetDeployMentlogs(req: Request, res: Response) {
       eq(deployment_logs.deployment_id, deployments.id),
     )
     .leftJoin(services, eq(services.id, deployments.service_id))
-    .where(eq(deployments.id, id))
+    .where(and(eq(deployments.id, id), eq(deployments.user_id, reqUserID)))
     .groupBy(services.id, deployments.id);
 
   if (!rows) {
@@ -117,7 +119,13 @@ export async function GetDeployMentlogsTable(req: Request, res: Response) {
     db
       .select({ count: count() })
       .from(deployments)
-      .leftJoin(services, eq(services.id, deployments.service_id))
+      .leftJoin(
+        services,
+        and(
+          eq(services.id, deployments.service_id),
+          eq(services.user_id, user_id),
+        ),
+      )
       .where(where_clause),
     db
       .select({
@@ -137,7 +145,13 @@ export async function GetDeployMentlogsTable(req: Request, res: Response) {
         repo_full_name: services.repo_full_name,
       })
       .from(deployments)
-      .leftJoin(services, eq(services.id, deployments.service_id))
+      .leftJoin(
+        services,
+        and(
+          eq(services.id, deployments.service_id),
+          eq(services.user_id, user_id),
+        ),
+      )
       .where(where_clause)
       .orderBy(desc(deployments.created_on))
       .offset(offsetValue)
@@ -154,6 +168,7 @@ export async function RollbackToDeployment(req: Request, res: Response) {
     return send_error(res, 400, "Invalid Payload!");
   }
 
+  const user_id = req.user!.id;
   const [target] = await db
     .select()
     .from(deployments)
@@ -161,6 +176,7 @@ export async function RollbackToDeployment(req: Request, res: Response) {
       and(
         eq(deployments.id, deployment_id),
         eq(deployments.service_id, service_id),
+        eq(deployments.user_id, user_id),
       ),
     );
 
@@ -174,6 +190,7 @@ export async function RollbackToDeployment(req: Request, res: Response) {
     .where(
       and(
         eq(deployments.service_id, service_id),
+        eq(deployments.user_id, user_id),
         inArray(deployments.status, [
           DEPLOYMENT_STATUS.QUEUED,
           DEPLOYMENT_STATUS.BUILDING,
@@ -206,8 +223,6 @@ export async function RollbackToDeployment(req: Request, res: Response) {
         "Target deployment is not eligible for rollback.",
     );
   }
-
-  const user_id = req.user!.id;
 
   const [created] = await db
     .insert(deployments)

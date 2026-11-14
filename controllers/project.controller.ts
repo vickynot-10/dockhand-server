@@ -112,10 +112,11 @@ export async function DeleteProject(req: Request, res: Response) {
   if (!id) {
     return send_error(res, 400, "Invalid Project");
   }
+  const user_id = req.user!.id;
 
   const [delete_project] = await db
     .delete(projects)
-    .where(eq(projects.id, id))
+    .where(and(eq(projects.id, id), eq(projects.user_id, user_id)))
     .returning();
 
   if (!delete_project) {
