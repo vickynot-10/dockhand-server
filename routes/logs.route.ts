@@ -1,14 +1,11 @@
 import { Router } from "express";
-``;
+
 import { AuthMiddleware } from "../middleware/auth.middleware.js";
-import {
-  GetDeployMentlogs,
-  GetDeployMentlogsTable,
-  RollbackToDeployment,
-} from "../controllers/deploy.controller.js";
+
+import { GetApplicationlogs } from "../controllers/logs.controller.js";
 const router = Router();
 
 router.use(AuthMiddleware);
 
-router.get("/", GetDeployMentlogs);
+router.get("/", GetApplicationlogs);
 export default router;
