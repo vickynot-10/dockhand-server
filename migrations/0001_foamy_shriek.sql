@@ -1,1 +1,0 @@
-ALTER TABLE "services" ADD COLUMN IF NOT EXISTS "auto_deploy" boolean DEFAULT true;

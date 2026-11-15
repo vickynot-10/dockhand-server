@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { services } from "./services.js";
 import { deployments } from "./deployments.js";
+import { users } from "./user.js";
 
 export const serviceLogs = pgTable(
   "service_logs",
@@ -19,6 +20,10 @@ export const serviceLogs = pgTable(
     deployment_id: uuid("deployment_id").references(() => deployments.id, {
       onDelete: "set null",
     }),
+
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     ts: timestamp("ts", { precision: 3 }).notNull(),
     stream: text("stream").notNull().default("stdout"),
     message: text("message").notNull(),

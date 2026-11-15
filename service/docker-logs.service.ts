@@ -17,6 +17,7 @@ type Row = typeof serviceLogs.$inferInsert;
 type Target = {
   deployment_id: string;
   service_id: string;
+  user_id: string;
   container_name: string;
 };
 
@@ -63,6 +64,7 @@ function makeLineSink(
       lastTs.value = ts.getTime();
       const message = raw.slice(space + 1, space + 1 + MAX_LINE);
       pushRow({
+        user_id: target.user_id,
         service_id: target.service_id,
         deployment_id: target.deployment_id,
         ts,
@@ -153,6 +155,7 @@ export async function syncFollowers() {
     .select({
       deployment_id: deployments.id,
       service_id: deployments.service_id,
+      user_id: deployments.user_id,
       container_name: deployments.container_name,
     })
     .from(deployments)

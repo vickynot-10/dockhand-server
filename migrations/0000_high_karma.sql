@@ -37,6 +37,9 @@ CREATE TABLE "services" (
 	"repo_type" integer,
 	"repo_full_name" text,
 	"branch" text,
+	"auto_deploy" boolean DEFAULT true,
+	"webhook_id" bigint,
+	"webhook_secret" text,
 	"root_directory" text,
 	"build_command" text,
 	"runtime" integer,
@@ -74,6 +77,16 @@ CREATE TABLE "deployment_logs" (
 	"ts" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "service_logs" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"service_id" uuid NOT NULL,
+	"deployment_id" uuid,
+	"user_id" uuid NOT NULL,
+	"ts" timestamp (3) NOT NULL,
+	"stream" text DEFAULT 'stdout' NOT NULL,
+	"message" text NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "services" ADD CONSTRAINT "services_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "services" ADD CONSTRAINT "services_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -81,5 +94,10 @@ ALTER TABLE "deployments" ADD CONSTRAINT "deployments_user_id_users_id_fk" FOREI
 ALTER TABLE "deployments" ADD CONSTRAINT "deployments_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployments" ADD CONSTRAINT "deployments_service_id_services_id_fk" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "deployment_logs" ADD CONSTRAINT "deployment_logs_deployment_id_deployments_id_fk" FOREIGN KEY ("deployment_id") REFERENCES "public"."deployments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "service_logs" ADD CONSTRAINT "service_logs_service_id_services_id_fk" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "service_logs" ADD CONSTRAINT "service_logs_deployment_id_deployments_id_fk" FOREIGN KEY ("deployment_id") REFERENCES "public"."deployments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "service_logs" ADD CONSTRAINT "service_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "deployments_service_id_idx" ON "deployments" USING btree ("service_id","created_on");--> statement-breakpoint
-CREATE INDEX "deployment_logs_deployment_id_idx" ON "deployment_logs" USING btree ("deployment_id","id");
+CREATE INDEX "deployment_logs_deployment_id_idx" ON "deployment_logs" USING btree ("deployment_id","id");--> statement-breakpoint
+CREATE INDEX "service_logs_service_ts_idx" ON "service_logs" USING btree ("service_id","ts");--> statement-breakpoint
+CREATE INDEX "service_logs_service_level_idx" ON "service_logs" USING btree ("service_id","id");

@@ -15,6 +15,7 @@ import {
 
 import { LogsQuerySchema } from "../schema/zod/logs.schema.js";
 import { serviceLogs } from "../schema/database/service-logs.js";
+import { services } from "../schema/database/services.js";
 
 export async function GetApplicationlogs(req: Request, res: Response) {
   const userId = req.user!.id;
@@ -31,7 +32,16 @@ export async function GetApplicationlogs(req: Request, res: Response) {
 
   const { limit, search, service_id, before } = parsed.data;
 
-  const rows = await db.select().from(serviceLogs);
+  const rows = await db
+    .select()
+    .from(serviceLogs)
+    .leftJoin(
+      services,
+      and(
+        eq(services.id, serviceLogs.service_id),
+        eq(services.user_id, serviceLogs.user_id),
+      ),
+    );
 
   return send_success(res, 200, rows);
 }
