@@ -21,15 +21,10 @@ export const serviceLogs = pgTable(
     }),
     ts: timestamp("ts", { precision: 3 }).notNull(),
     stream: text("stream").notNull().default("stdout"),
-    level: text("level"),
     message: text("message").notNull(),
   },
   (table) => [
     index("service_logs_service_ts_idx").on(table.service_id, table.ts),
-    index("service_logs_service_level_idx").on(
-      table.service_id,
-      table.level,
-      table.id,
-    ),
+    index("service_logs_service_level_idx").on(table.service_id, table.id),
   ],
 );

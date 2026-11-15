@@ -5,9 +5,8 @@ import { db } from "../config/db.js";
 import { deployments } from "../schema/database/deployments.js";
 import { serviceLogs } from "../schema/database/service-logs.js";
 import { DEPLOYMENT_STATUS } from "../constants.js";
-import { detectLevel, type LogLevel } from "../utils/logLevel.js";
 
-const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+const docker = new Docker();
 
 const FLUSH_MS = 1000;
 const FLUSH_SIZE = 500;
@@ -51,7 +50,6 @@ function makeLineSink(
 ) {
   const sink = new PassThrough();
   let pending = "";
-  let previousLevel: LogLevel | null = null;
 
   sink.on("data", (chunk: Buffer) => {
     pending += chunk.toString("utf8");
@@ -64,14 +62,11 @@ function makeLineSink(
       if (Number.isNaN(ts.getTime()) || ts.getTime() < lastTs.value) continue;
       lastTs.value = ts.getTime();
       const message = raw.slice(space + 1, space + 1 + MAX_LINE);
-      const level = detectLevel(message, previousLevel);
-      previousLevel = level;
       pushRow({
         service_id: target.service_id,
         deployment_id: target.deployment_id,
         ts,
         stream,
-        level,
         message,
       });
     }
@@ -122,9 +117,13 @@ export async function startFollowing(target: Target) {
         since,
       })) as NodeJS.ReadableStream;
 
-      const out = makeLineSink(target, lastTs, "stdout");
-      const err = makeLineSink(target, lastTs, "stderr");
-      docker.modem.demuxStream(logStream, out, err);
+      if (info.Config.Tty) {
+        logStream.pipe(makeLineSink(target, lastTs, "stdout"));
+      } else {
+        const out = makeLineSink(target, lastTs, "stdout");
+        const err = makeLineSink(target, lastTs, "stderr");
+        docker.modem.demuxStream(logStream, out, err);
+      }
 
       logStream.on("end", () => void connect(0));
       logStream.on("error", () =>

@@ -290,7 +290,7 @@ export async function DeployServices(req: Request, res: Response) {
     .where(
       and(
         eq(deployments.service_id, service.id),
-        eq(services.user_id, userId),
+        eq(deployments.user_id, userId),
         inArray(deployments.status, [
           DEPLOYMENT_STATUS.QUEUED,
           DEPLOYMENT_STATUS.BUILDING,

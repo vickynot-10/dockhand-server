@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 
 import { LogsQuerySchema } from "../schema/zod/logs.schema.js";
+import { serviceLogs } from "../schema/database/service-logs.js";
 
 export async function GetApplicationlogs(req: Request, res: Response) {
   const userId = req.user!.id;
@@ -29,4 +30,8 @@ export async function GetApplicationlogs(req: Request, res: Response) {
   }
 
   const { limit, search, service_id, before } = parsed.data;
+
+  const rows = await db.select().from(serviceLogs);
+
+  return send_success(res, 200, rows);
 }
