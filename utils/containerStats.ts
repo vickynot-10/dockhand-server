@@ -1,6 +1,6 @@
 import Docker from "dockerode";
 
-const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+const docker = new Docker();
 
 export type MetricSnapshot = {
   cpu_percent: number;
@@ -63,7 +63,11 @@ export async function getContainerSnapshot(
       started_at: info.State?.StartedAt ?? null,
       restart_count: info.RestartCount ?? 0,
     };
-  } catch {
+  } catch (error) {
+    console.error(
+      `Container stats failed for "${containerName}":`,
+      error instanceof Error ? error.message : error,
+    );
     return null;
   }
 }

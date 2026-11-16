@@ -1,6 +1,6 @@
 import axios from "axios";
 import crypto from "crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { services } from "../schema/database/services.js";
 import { getGithubToken } from "../utils/github.js";
@@ -306,4 +306,27 @@ export async function GithubWebhook(req: Request, res: Response) {
   } catch {
     return res.sendStatus(500);
   }
+}
+
+export async function resyncUserWebhooks(userId: string) {
+  const token = await getGithubToken(userId);
+  const rows = await db
+    .select()
+    .from(services)
+    .where(and(eq(services.user_id, userId), eq(services.auto_deploy, true)));
+
+  let registered = 0;
+  let failed = 0;
+
+  for (const row of rows) {
+    if (!row.repo_full_name) continue;
+    if (token && row.webhook_id) {
+      await removeHookSafely(token, row.repo_full_name, row.webhook_id);
+    }
+    const ok = await registerServiceWebhook(userId, row);
+    if (ok) registered++;
+    else failed++;
+  }
+
+  return { registered, failed };
 }

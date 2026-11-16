@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Request, Response } from "express";
 import { db } from "../config/db.js";
 import { DEPLOYMENT_STATUS } from "../constants.js";
@@ -30,10 +30,11 @@ export async function GetMetrics(req: Request, res: Response) {
     ? sql`AND service_id = ${service_id}`
     : sql``;
 
-  const [deploymentStats, running] = await Promise.all([
+  const [deploymentStats, running, deploymentsOverDays] = await Promise.all([
     db.execute(sql`
       SELECT
         COUNT(*)::int AS total_deployments,
+
         COUNT(*) FILTER (WHERE status = ${DEPLOYMENT_STATUS.FAILED})::int AS failed,
         COUNT(*) FILTER (WHERE status = ${DEPLOYMENT_STATUS.QUEUED})::int AS queued,
         COUNT(*) FILTER (WHERE status = ${DEPLOYMENT_STATUS.RUNNING})::int AS running,
@@ -68,6 +69,21 @@ export async function GetMetrics(req: Request, res: Response) {
         ),
       )
       .orderBy(desc(deployments.created_on)),
+
+    db
+      .select({
+        deployment_date: deployments.created_on,
+        count: count(),
+      })
+      .from(deployments)
+      .where(
+        and(
+          eq(deployments.user_id, userId),
+          service_id ? eq(deployments.service_id, service_id) : undefined,
+        ),
+      )
+      .groupBy(deployments.created_on)
+      .orderBy(deployments.created_on),
   ]);
 
   const latestPerService = new Map<string, (typeof running)[number]>();
@@ -92,5 +108,6 @@ export async function GetMetrics(req: Request, res: Response) {
   return send_success(res, 200, {
     deployments: deploymentStats.rows[0],
     containers: snapshots.filter((item) => item !== null),
+    deploymentsOverDays,
   });
 }
