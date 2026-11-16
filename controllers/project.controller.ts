@@ -3,7 +3,7 @@ import { CreateEditProjectSchema } from "../schema/zod/project.schema.js";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
 import { projects } from "../schema/database/project.js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { services } from "../schema/database/services.js";
 
 export async function GetProjects(req: Request, res: Response) {
@@ -14,10 +14,17 @@ export async function GetProjects(req: Request, res: Response) {
       project_name: projects.project_name,
       environment: projects.environment,
       updated_on: projects.updated_on,
+      services_count: count(services.id),
       id: projects.id,
     })
     .from(projects)
-    .where(eq(projects.user_id, userId));
+    .where(eq(projects.user_id, userId))
+    .leftJoin(
+      services,
+      and(eq(services.user_id, userId), eq(services.project_id, projects.id)),
+    )
+    .groupBy(projects.id)
+    .orderBy(desc(projects.updated_on));
 
   return send_success(res, 200, rows);
 }
@@ -51,6 +58,7 @@ export async function GetProjectsServices(req: Request, res: Response) {
             'updated_on', ${services.updated_on},
             'host' , ${services.host}
           )
+             ORDER BY ${services.updated_on} DESC
         ) FILTER (WHERE ${services.id} IS NOT NULL),
         '[]'::jsonb
       )
