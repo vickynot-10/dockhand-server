@@ -11,10 +11,10 @@ import { and, eq, ne } from "drizzle-orm";
 
 import {
   GetImage,
-  HealthCheckCOntainer,
   PullImage,
   RemoveContainer,
   RunContainer,
+  StopContainers,
 } from "../utils/docker.js";
 import { config } from "dotenv";
 import { services } from "../schema/database/services.js";
@@ -99,14 +99,21 @@ async function RemoveOldContainers(
         ne(deployments.id, currentDeploymentID),
       ),
     );
+
+  if (previous_deployments.length) {
+    await new Promise((r) => setTimeout(r, 3000));
+  }
   for (const item of previous_deployments) {
-    await UpdateDeployment(item.id, { status: DEPLOYMENT_STATUS.SUPERSEDED });
-    if (!item.container_name) continue;
-    try {
-      await RemoveContainer(item.container_name);
-    } catch (e) {
-      console.error("Failed to remove old container", item.container_name, e);
+    if (item.container_name) {
+      try {
+        await StopContainers(item.container_name);
+        await RemoveContainer(item.container_name);
+      } catch (e) {
+        console.error("Failed to remove old container", item.container_name, e);
+        continue;
+      }
     }
+    await UpdateDeployment(item.id, { status: DEPLOYMENT_STATUS.SUPERSEDED });
   }
 }
 
@@ -148,31 +155,20 @@ export async function DockerBasedDeploy(
     );
 
     onLog?.("system", "Starting container");
-    await RunContainer({
-      service_name: service_data.name,
-      project_id: service_data.project_id,
-      name: container_name,
-      image: image_ref,
-      slug: service_data.slug,
-      port: DEFAULT_PORT,
-      hostname: host_name,
-      env_vars: service_data.env_vars ?? [],
-    });
+    await RunContainer(
+      {
+        service_name: service_data.name,
+        project_id: service_data.project_id,
+        name: container_name,
+        image: image_ref,
+        slug: service_data.slug,
+        port: DEFAULT_PORT,
+        hostname: host_name,
+        env_vars: service_data.env_vars ?? [],
+      },
+      onLog,
+    );
 
-    const { reason, healthy } = await HealthCheckCOntainer({
-      name: container_name,
-      port: DEFAULT_PORT,
-      project_id: service_data.project_id,
-    });
-
-    if (!healthy) {
-      onLog?.("stderr", reason ?? "Health check failed");
-      await RemoveContainer(container_name);
-      throw new Error(reason ?? "Health check failed");
-    }
-
-    onLog?.("system", "Health check passed");
-    await RemoveOldContainers(service_data.id, deployment_id);
     onLog?.("system", "Updating Deployments");
     // Finish deployment
 
@@ -186,8 +182,6 @@ export async function DockerBasedDeploy(
 
     const FINAL_HOST = BuildPublicUrl(host_name);
 
-    onLog?.("system", `Running at ${FINAL_HOST}`);
-
     await db
       .update(services)
       .set({
@@ -195,6 +189,11 @@ export async function DockerBasedDeploy(
         updated_on: new Date(),
       })
       .where(eq(services.id, service_data.id));
+
+    onLog?.("system", `Running at ${FINAL_HOST}`);
+    await RemoveOldContainers(service_data.id, deployment_id).catch((e) =>
+      console.error("Old container cleanup failed", e),
+    );
   } catch (e) {
     await RemoveContainer(container_name).catch(() => {});
     await UpdateDeployment(deployment_id, {
