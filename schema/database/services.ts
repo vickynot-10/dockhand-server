@@ -54,6 +54,10 @@ export const services = pgTable("services", {
 
   image_url: text("image_url"),
 
-  created_on: timestamp("created_on").defaultNow().notNull(),
-  updated_on: timestamp("updated_on").defaultNow().notNull(),
+  created_on: timestamp("created_on", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updated_on: timestamp("updated_on", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
