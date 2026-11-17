@@ -8,6 +8,13 @@
       "when": 1794722141889,
       "tag": "0000_high_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794893619455,
+      "tag": "0001_clammy_alex_power",
+      "breakpoints": true
     }
   ]
 }
