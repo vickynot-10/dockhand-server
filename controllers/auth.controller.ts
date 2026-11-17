@@ -106,6 +106,7 @@ export async function SignOut(req: Request, res: Response) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    domain: ".deploydock.duckdns.org",
     path: "/",
   });
   return send_success(res, 200, null, "Logged Out Successfully !");
@@ -122,6 +123,7 @@ export function GithubAuth(req: Request, res: Response) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    domain: ".deploydock.duckdns.org",
     maxAge: 10 * 60 * 1000,
   });
 
