@@ -3,8 +3,12 @@ import { CreateEditProjectSchema } from "../schema/zod/project.schema.js";
 import { send_error, send_success } from "../utils/response.js";
 import { db } from "../config/db.js";
 import { projects } from "../schema/database/project.js";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { services } from "../schema/database/services.js";
+import { deployments } from "../schema/database/deployments.js";
+import { DEPLOYMENT_STATUS } from "../constants.js";
+import { EnqueueDeploymentActions } from "../queue/container-actions.queue.js";
+import { removeServiceWebhooks } from "../webhooks/github.webhook.js";
 
 export async function GetProjects(req: Request, res: Response) {
   const userId = req.user!.id;
@@ -122,14 +126,56 @@ export async function DeleteProject(req: Request, res: Response) {
   }
   const user_id = req.user!.id;
 
+  const owned = and(eq(services.project_id, id), eq(services.user_id, user_id));
+
+  const containers = await db
+    .select({
+      id: deployments.id,
+      service_id: deployments.service_id,
+      container_name: deployments.container_name,
+    })
+    .from(deployments)
+    .innerJoin(services, eq(services.id, deployments.service_id))
+    .where(
+      and(
+        owned,
+        isNotNull(deployments.container_name),
+        inArray(deployments.status, [
+          DEPLOYMENT_STATUS.RUNNING,
+          DEPLOYMENT_STATUS.SUSPENDED,
+        ]),
+      ),
+    );
+
+  const hooks = await db
+    .select({
+      repo_full_name: services.repo_full_name,
+      webhook_id: services.webhook_id,
+    })
+    .from(services)
+    .where(and(owned, isNotNull(services.webhook_id)));
+
+  await Promise.all(
+    containers.map((item) =>
+      EnqueueDeploymentActions(
+        item.id,
+        item.service_id,
+        "delete",
+        item.container_name!,
+      ),
+    ),
+  );
+
   const [delete_project] = await db
     .delete(projects)
     .where(and(eq(projects.id, id), eq(projects.user_id, user_id)))
     .returning();
 
   if (!delete_project) {
-    return send_error(res, 500, "Internal Server Error !");
+    return send_error(res, 404, "Project not found !");
   }
 
-  return send_success(res, 201, null, "Project Delete Successfully !");
+  await removeServiceWebhooks(user_id, hooks);
+
+  return send_success(res, 200, null, "Project Deleted Successfully !");
 }
