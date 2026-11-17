@@ -11,14 +11,30 @@ const LOCKFILES = [
   { file: "package-lock.json", install: "npm install", build: "npm run build" },
 ];
 
-function githubHeaders(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
+function githubHeaders(token?: string | null) {
+  const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
   };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 }
 
-function handleGithubError(res: Response, e: any, fallback: string) {
+async function getOptionalToken(userId: string) {
+  try {
+    return (await getGithubToken(userId)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function handleGithubError(
+  res: Response,
+  e: any,
+  fallback: string,
+  hasToken = true,
+) {
   if (e.response?.status === 401) {
     return send_error(
       res,
@@ -26,8 +42,26 @@ function handleGithubError(res: Response, e: any, fallback: string) {
       "GitHub token invalid. Please reconnect GitHub.",
     );
   }
+  if (
+    e.response?.status === 403 &&
+    e.response?.headers?.["x-ratelimit-remaining"] === "0"
+  ) {
+    return send_error(
+      res,
+      429,
+      hasToken
+        ? "GitHub rate limit reached. Try again later."
+        : "GitHub rate limit reached. Connect GitHub or try again later.",
+    );
+  }
   if (e.response?.status === 404) {
-    return send_error(res, 404, "Repository or branch not found");
+    return send_error(
+      res,
+      404,
+      hasToken
+        ? "Repository or branch not found"
+        : "Repository or branch not found. If it is private, connect GitHub.",
+    );
   }
   console.error(e);
   return send_error(res, 500, fallback);
@@ -49,7 +83,7 @@ function isIgnored(path: string) {
 }
 
 async function fetchTree(
-  token: string,
+  token: string | null,
   owner: string,
   repo: string,
   branch: string,
@@ -105,18 +139,21 @@ export async function GetRepos(req: Request, res: Response) {
 }
 
 export async function GetBranches(req: Request, res: Response) {
+  let hasToken = false;
   try {
     const userId = req.user?.id;
     if (!userId) {
       return send_error(res, 401, "Invalid Credentials");
     }
 
-    const { owner, repo } = req.query;
+    const { owner, repo } = req.query as { owner: string; repo: string };
 
-    const github_token = await getGithubToken(userId);
-    if (!github_token) {
-      return send_error(res, 400, "GitHub not connected");
+    if (!owner || !repo) {
+      return send_error(res, 400, "owner and repo are required");
     }
+
+    const github_token = await getOptionalToken(userId);
+    hasToken = !!github_token;
 
     const { data } = await axios.get(
       `https://api.github.com/repos/${owner}/${repo}`,
@@ -141,11 +178,12 @@ export async function GetBranches(req: Request, res: Response) {
       "Branches fetched",
     );
   } catch (e: any) {
-    return handleGithubError(res, e, "Failed to fetch branches");
+    return handleGithubError(res, e, "Failed to fetch branches", hasToken);
   }
 }
 
 export async function GetTree(req: Request, res: Response) {
+  let hasToken = false;
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -162,10 +200,8 @@ export async function GetTree(req: Request, res: Response) {
       return send_error(res, 400, "owner, repo and branch are required");
     }
 
-    const token = await getGithubToken(userId);
-    if (!token) {
-      return send_error(res, 400, "GitHub not connected");
-    }
+    const token = await getOptionalToken(userId);
+    hasToken = !!token;
 
     const data = await fetchTree(token, owner, repo, branch);
 
@@ -193,7 +229,12 @@ export async function GetTree(req: Request, res: Response) {
       "Tree fetched",
     );
   } catch (e: any) {
-    return handleGithubError(res, e, "Failed to fetch folder structure");
+    return handleGithubError(
+      res,
+      e,
+      "Failed to fetch folder structure",
+      hasToken,
+    );
   }
 }
 
@@ -208,6 +249,7 @@ function getBuildCommand(paths: Set<string>, dir: string) {
 }
 
 export async function GetDetect(req: Request, res: Response) {
+  let hasToken = false;
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -225,10 +267,8 @@ export async function GetDetect(req: Request, res: Response) {
       return send_error(res, 400, "owner, repo and branch are required");
     }
 
-    const token = await getGithubToken(userId);
-    if (!token) {
-      return send_error(res, 400, "GitHub not connected");
-    }
+    const token = await getOptionalToken(userId);
+    hasToken = !!token;
 
     const data = await fetchTree(token, owner, repo, branch);
     const paths = new Set<string>(
@@ -248,6 +288,11 @@ export async function GetDetect(req: Request, res: Response) {
       "Build command detected",
     );
   } catch (e: any) {
-    return handleGithubError(res, e, "Failed to detect build command");
+    return handleGithubError(
+      res,
+      e,
+      "Failed to detect build command",
+      hasToken,
+    );
   }
 }
