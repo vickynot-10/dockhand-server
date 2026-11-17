@@ -1,4 +1,5 @@
 import Docker from "dockerode";
+import { hostname } from "node:os";
 import type {
   HealthOptions,
   HealthResult,
@@ -11,6 +12,8 @@ import { GetEntrypoint } from "./domain.js";
 config();
 const docker = new Docker();
 const STABLE_MS = 8000;
+const LOG_TAIL_LINES = 20;
+const LOG_TAIL_CHARS = 2000;
 
 const MEMORY_LIMIT = MEMORY_LIMIT_MB * 1024 * 1024;
 
@@ -25,6 +28,7 @@ function CreateNetworkName(project_id: string): string {
 }
 
 export const TRAEFIK_CONTAINER = process.env.TRAEFIK_CONTAINER ?? "traefik";
+const SELF_CONTAINER = process.env.WORKER_CONTAINER ?? hostname();
 
 async function ConnectToNetwork(network: string) {
   try {
@@ -34,6 +38,15 @@ async function ConnectToNetwork(network: string) {
     if (e.statusCode === 404) {
       throw new Error(`Traefik container "${TRAEFIK_CONTAINER}" not found`);
     }
+    throw e;
+  }
+}
+
+async function ConnectSelfToNetwork(network: string) {
+  try {
+    await docker.getNetwork(network).connect({ Container: SELF_CONTAINER });
+  } catch (e: any) {
+    if (e.statusCode === 403 || e.statusCode === 404) return;
     throw e;
   }
 }
@@ -108,11 +121,13 @@ export async function RunContainer(options: RunContainerOptions) {
     name,
     image,
     slug,
-    hostname,
+    hostname: host_name,
     port,
     env_vars,
   } = options;
   const NETWORK = await CreateNetwork(project_id);
+
+  await RemoveContainer(name);
 
   const container = await docker.createContainer({
     name,
@@ -120,7 +135,7 @@ export async function RunContainer(options: RunContainerOptions) {
     Labels: {
       "traefik.enable": "true",
       "traefik.docker.network": NETWORK,
-      [`traefik.http.routers.${slug}.rule`]: `Host(\`${hostname}\`)`,
+      [`traefik.http.routers.${slug}.rule`]: `Host(\`${host_name}\`)`,
       [`traefik.http.routers.${slug}.entrypoints`]: GetEntrypoint(),
       [`traefik.http.services.${slug}.loadbalancer.server.port`]: String(port),
     },
@@ -144,6 +159,7 @@ export async function RunContainer(options: RunContainerOptions) {
   });
 
   await ConnectToNetwork(NETWORK);
+  await ConnectSelfToNetwork(NETWORK);
 
   await container.start();
 
@@ -193,6 +209,35 @@ async function ApiCall(url: string) {
   }
 }
 
+function DemuxLogs(buf: Buffer) {
+  const parts: string[] = [];
+  let offset = 0;
+  while (offset + 8 <= buf.length) {
+    const size = buf.readUInt32BE(offset + 4);
+    parts.push(buf.subarray(offset + 8, offset + 8 + size).toString("utf8"));
+    offset += 8 + size;
+  }
+  return parts.join("").trim();
+}
+
+async function TailLogs(name: string) {
+  try {
+    const buf = (await docker.getContainer(name).logs({
+      stdout: true,
+      stderr: true,
+      tail: LOG_TAIL_LINES,
+    })) as unknown as Buffer;
+    return DemuxLogs(buf).slice(-LOG_TAIL_CHARS);
+  } catch {
+    return "";
+  }
+}
+
+async function WithLogs(name: string, reason: string) {
+  const logs = await TailLogs(name);
+  return logs ? `${reason}\n${logs}` : reason;
+}
+
 export async function HealthCheckCOntainer(
   options: HealthOptions,
 ): Promise<HealthResult> {
@@ -217,7 +262,10 @@ export async function HealthCheckCOntainer(
     if (!info.State.Running || info.State.Restarting || info.RestartCount > 0) {
       return {
         healthy: false,
-        reason: `Container exited with code ${info.State.ExitCode}`,
+        reason: await WithLogs(
+          name,
+          `Container exited with code ${info.State.ExitCode}`,
+        ),
       };
     }
 
@@ -234,6 +282,9 @@ export async function HealthCheckCOntainer(
   }
   return {
     healthy: false,
-    reason: `Health check failed after ${timeout_ms / 1000}s on port ${port}`,
+    reason: await WithLogs(
+      name,
+      `Health check failed after ${timeout_ms / 1000}s on port ${port}`,
+    ),
   };
 }
