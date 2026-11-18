@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import type {
   HealthOptions,
   HealthResult,
+  OnLog,
   RunContainerOptions,
 } from "../types/deploy.types.js";
 import { config } from "dotenv";
@@ -114,7 +115,10 @@ export async function GetImage(image: string): Promise<string> {
   return info.RepoDigests?.[0] ?? img;
 }
 
-export async function RunContainer(options: RunContainerOptions) {
+export async function RunContainer(
+  options: RunContainerOptions,
+  onLog?: OnLog,
+) {
   const {
     project_id,
     service_name,
@@ -138,6 +142,9 @@ export async function RunContainer(options: RunContainerOptions) {
       [`traefik.http.routers.${slug}.rule`]: `Host(\`${host_name}\`)`,
       [`traefik.http.routers.${slug}.entrypoints`]: GetEntrypoint(),
       [`traefik.http.services.${slug}.loadbalancer.server.port`]: String(port),
+      [`traefik.http.services.${slug}.loadbalancer.healthcheck.path`]: "/",
+      [`traefik.http.services.${slug}.loadbalancer.healthcheck.interval`]: "2s",
+      [`traefik.http.services.${slug}.loadbalancer.healthcheck.timeout`]: "1s",
     },
     Env: [
       ...(env_vars ?? []).map((item) => `${item.key}=${item.value}`),
@@ -158,10 +165,28 @@ export async function RunContainer(options: RunContainerOptions) {
     },
   });
 
-  await ConnectToNetwork(NETWORK);
-  await ConnectSelfToNetwork(NETWORK);
+  try {
+    await ConnectToNetwork(NETWORK);
+    await ConnectSelfToNetwork(NETWORK);
+    await container.start();
+  } catch (e) {
+    await RemoveContainer(name).catch(() => {});
+    throw e;
+  }
 
-  await container.start();
+  const { reason, healthy } = await HealthCheckCOntainer({
+    name: name,
+    port: port,
+    project_id: project_id,
+  });
+
+  if (!healthy) {
+    onLog?.("stderr", reason ?? "Health check failed");
+    await RemoveContainer(name);
+    throw new Error(reason ?? "Health check failed");
+  }
+
+  onLog?.("system", "Health check passed");
 
   return container.id;
 }
@@ -203,7 +228,7 @@ function Sleep(ms: number) {
 async function ApiCall(url: string) {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    return res.status < 500;
+    return res.status >= 200 && res.status < 400;
   } catch {
     return false;
   }
@@ -238,7 +263,7 @@ async function WithLogs(name: string, reason: string) {
   return logs ? `${reason}\n${logs}` : reason;
 }
 
-export async function HealthCheckCOntainer(
+async function HealthCheckCOntainer(
   options: HealthOptions,
 ): Promise<HealthResult> {
   const {
