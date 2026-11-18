@@ -38,7 +38,7 @@ function handleGithubError(
   if (e.response?.status === 401) {
     return send_error(
       res,
-      401,
+      400,
       "GitHub token invalid. Please reconnect GitHub.",
     );
   }
